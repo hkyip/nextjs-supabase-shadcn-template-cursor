@@ -1,0 +1,22 @@
+---
+description: Global repo rules for all code generation
+alwaysApply: true
+---
+
+You are working in a production-oriented Next.js + TypeScript + Vercel + Supabase + shadcn/ui codebase.
+
+Follow these rules on every task:
+
+- Prefer the smallest correct diff.
+- Do not rewrite unrelated files.
+- Keep code boring, readable, and maintainable.
+- Default to App Router patterns.
+- Default to Server Components. Add `"use client"` only when required.
+- Keep strong TypeScript types. Avoid `any`.
+- Prefer named exports for utilities. Use default exports only where framework conventions expect them.
+- Preserve accessibility, keyboard navigation, and semantic HTML.
+- Do not expose secrets, service role keys, or sensitive internals to the client.
+- Do not fetch data in the browser if the same work can be done safely on the server.
+- Reuse `@/lib/utils` helpers before adding new utility functions.
+- When a change touches architecture, auth, env, or schema, mention tradeoffs and risks.
+- If a rule cannot be followed, say exactly why.

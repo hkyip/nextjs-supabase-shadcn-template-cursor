@@ -1,0 +1,17 @@
+---
+description: shadcn/ui, Tailwind, and component conventions
+globs: ["src/components/**/*.ts", "src/components/**/*.tsx", "src/app/**/*.tsx", "src/app/globals.css"]
+alwaysApply: false
+---
+
+UI rules:
+
+- Use shadcn/ui patterns for reusable primitives.
+- Keep components composable and focused.
+- Prefer semantic HTML first, utility classes second.
+- Use `cn()` for class composition.
+- Do not create giant multi-purpose components.
+- Keep visual variants in CVA where it improves reuse.
+- Preserve focus styles and accessible names.
+- Prefer design-token variables over hardcoded one-off values.
+- Keep loading, empty, error, and success states visible in the UI.

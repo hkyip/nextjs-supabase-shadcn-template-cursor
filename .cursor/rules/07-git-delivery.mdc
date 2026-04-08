@@ -1,0 +1,12 @@
+---
+description: Delivery and PR hygiene
+alwaysApply: true
+---
+
+Delivery rules:
+
+- Keep changes focused and reviewable.
+- Do not mix refactors with feature work unless necessary.
+- Update README or inline docs when setup or architecture changes.
+- Include a short verification plan for substantial changes.
+- Prefer reversible changes and clear migration paths.

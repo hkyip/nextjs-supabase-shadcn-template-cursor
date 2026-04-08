@@ -1,0 +1,14 @@
+---
+description: Security and operational rules
+alwaysApply: true
+---
+
+Security rules:
+
+- Never log secrets, tokens, or full auth payloads.
+- Do not trust client input. Validate and narrow types at boundaries.
+- Prefer server-side authorization checks for sensitive actions.
+- Return safe errors to clients. Keep internal details out of user-facing responses.
+- Use environment variables for runtime configuration.
+- Minimize third-party dependencies.
+- For auth, payments, webhooks, or admin actions, be conservative and explicit.

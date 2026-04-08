@@ -1,0 +1,18 @@
+---
+description: Architecture and folder boundaries
+globs: ["src/**/*.ts", "src/**/*.tsx", "proxy.ts"]
+alwaysApply: false
+---
+
+Architecture rules:
+
+- Keep app routes under `src/app`.
+- Keep reusable UI under `src/components`.
+- Keep cross-cutting logic under `src/lib`.
+- Keep framework-specific request logic in route handlers, server actions, or `proxy.ts`.
+- Keep env parsing in `src/lib/env.ts` only.
+- Do not put large business logic directly in `page.tsx` or `layout.tsx`.
+- Extract repeated logic into typed helpers.
+- Prefer feature folders when a domain grows.
+- Keep imports one-directional where possible: app -> components -> lib.
+- Avoid circular imports.

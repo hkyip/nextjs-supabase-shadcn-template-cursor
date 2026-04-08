@@ -1,0 +1,15 @@
+---
+description: Quality, testing, and maintainability
+alwaysApply: true
+---
+
+Quality rules:
+
+- All code must pass lint and typecheck.
+- Add or update tests for non-trivial logic.
+- Prefer small pure functions for business logic.
+- Avoid magic strings and duplicate constants.
+- Keep function signatures narrow and typed.
+- Use explicit return types for exported functions when it improves readability.
+- Add brief comments only for non-obvious reasoning, not for obvious code.
+- Leave the codebase cleaner than you found it.

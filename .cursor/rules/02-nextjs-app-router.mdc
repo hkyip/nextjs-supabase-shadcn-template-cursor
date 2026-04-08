@@ -1,0 +1,18 @@
+---
+description: Next.js App Router best practices
+globs: ["src/app/**/*.ts", "src/app/**/*.tsx", "proxy.ts", "next.config.ts"]
+alwaysApply: false
+---
+
+Next.js rules:
+
+- Use App Router conventions.
+- Use typed `Metadata` for static metadata when possible.
+- Prefer Server Components for data loading.
+- Add `"use client"` only for interactivity, stateful hooks, or browser-only APIs.
+- Use route handlers for backend-for-frontend endpoints.
+- Use `proxy.ts` for request boundary concerns like auth/session refresh, not for general app logic.
+- Be deliberate with caching and revalidation.
+- Avoid unnecessary dynamic rendering.
+- Do not move protected logic into client components.
+- Use `next/link`, `next/image`, and `next/font` where appropriate.

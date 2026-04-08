@@ -1,0 +1,17 @@
+---
+description: Supabase usage and safety rules
+globs: ["src/lib/supabase/**/*.ts", "src/app/**/*.ts", "src/app/**/*.tsx", "proxy.ts"]
+alwaysApply: false
+---
+
+Supabase rules:
+
+- Use `@supabase/ssr` patterns for browser and server clients.
+- Keep browser and server client creation separate.
+- Never use the service role key in browser code.
+- Assume Row Level Security is enabled for app data.
+- Prefer server-side access for privileged reads/writes.
+- Put schema changes in migrations, not only in the dashboard.
+- When adding tables or policies, note the required RLS behavior.
+- Keep auth callback and token refresh flows simple and explicit.
+- Do not scatter Supabase initialization logic across files.
