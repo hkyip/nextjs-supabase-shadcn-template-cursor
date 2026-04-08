@@ -9,6 +9,8 @@ Production-oriented starter template for:
 - shadcn/ui
 - Cursor project rules
 
+![Landing page of the production template with dark mode toggle and setup actions](docs/landing-page.png)
+
 ## What this template includes
 
 - `src/` layout with App Router
