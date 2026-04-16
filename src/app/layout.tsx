@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FryQ — AI-Powered Fry Kitchen Forecasting",
-  description: "Demand forecasting for fry kitchen operators. Know what to drop before the rush hits.",
+  title: "Forkcast — Real-Time Production Management",
+  description: "Real-time production management across the full food lifecycle. Forecast, cook, hold, and reduce waste.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

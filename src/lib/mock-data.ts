@@ -1,170 +1,384 @@
 // ---------------------------------------------------------------------------
-// Mock data for the Fry Kitchen Demand Forecasting demo.
-// All data is static / hardcoded -- no backend needed.
+// Forkcast V0 — Mock data for the production management demo.
+// All data is static / hardcoded — no backend needed.
 // ---------------------------------------------------------------------------
 
-export type FryItem = {
+// ---------------------------------------------------------------------------
+// Store Configuration
+// ---------------------------------------------------------------------------
+
+export type StoreConfig = {
+  name: string;
+  address: string;
+  timezone: string;
+  hoursOfOperation: { day: string; open: string; close: string }[];
+};
+
+export const STORE: StoreConfig = {
+  name: "Forkcast Demo Store #142",
+  address: "1200 Main Street, Springfield",
+  timezone: "America/Chicago",
+  hoursOfOperation: [
+    { day: "Monday", open: "06:00", close: "22:00" },
+    { day: "Tuesday", open: "06:00", close: "22:00" },
+    { day: "Wednesday", open: "06:00", close: "22:00" },
+    { day: "Thursday", open: "06:00", close: "22:00" },
+    { day: "Friday", open: "06:00", close: "23:00" },
+    { day: "Saturday", open: "07:00", close: "23:00" },
+    { day: "Sunday", open: "07:00", close: "21:00" },
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// Menu Items — the three spec demo items
+// ---------------------------------------------------------------------------
+
+export type MenuItem = {
   id: string;
   name: string;
-  category: "protein" | "sides" | "snacks";
-  unit: string;
   cookTimeSeconds: number;
+  holdTimeSeconds: number;
+  batchMeasurement: string;
+  batchSize: number;
+  foodCostPerUnit: number;
 };
 
-export const MENU_ITEMS: FryItem[] = [
-  { id: "chicken-tenders", name: "Chicken Tenders", category: "protein", unit: "pcs", cookTimeSeconds: 270 },
-  { id: "fries-large", name: "Fries (Large)", category: "sides", unit: "bags", cookTimeSeconds: 210 },
-  { id: "fries-regular", name: "Fries (Regular)", category: "sides", unit: "bags", cookTimeSeconds: 210 },
-  { id: "onion-rings", name: "Onion Rings", category: "snacks", unit: "pcs", cookTimeSeconds: 180 },
-  { id: "fish-fillets", name: "Fish Fillets", category: "protein", unit: "pcs", cookTimeSeconds: 300 },
-  { id: "mozzarella-sticks", name: "Mozzarella Sticks", category: "snacks", unit: "pcs", cookTimeSeconds: 150 },
-  { id: "chicken-wings", name: "Chicken Wings", category: "protein", unit: "pcs", cookTimeSeconds: 480 },
-  { id: "corn-dogs", name: "Corn Dogs", category: "snacks", unit: "pcs", cookTimeSeconds: 240 },
+export const MENU_ITEMS: MenuItem[] = [
+  {
+    id: "original-chicken",
+    name: "Original Chicken",
+    cookTimeSeconds: 600,
+    holdTimeSeconds: 1200,
+    batchMeasurement: "pieces",
+    batchSize: 8,
+    foodCostPerUnit: 0.85,
+  },
+  {
+    id: "french-fries",
+    name: "French Fries",
+    cookTimeSeconds: 210,
+    holdTimeSeconds: 420,
+    batchMeasurement: "portions",
+    batchSize: 6,
+    foodCostPerUnit: 0.35,
+  },
+  {
+    id: "apple-pie",
+    name: "Apple Pie",
+    cookTimeSeconds: 480,
+    holdTimeSeconds: 1800,
+    batchMeasurement: "pieces",
+    batchSize: 4,
+    foodCostPerUnit: 0.65,
+  },
 ];
 
 // ---------------------------------------------------------------------------
-// Station: "Drop Now" recommendations
+// Capture methods for cook-start / disposal documentation
 // ---------------------------------------------------------------------------
 
-export type DropNowItem = {
-  itemId: string;
-  name: string;
-  unit: string;
+export type CaptureMethod = "camera" | "voice" | "manual";
+
+// ---------------------------------------------------------------------------
+// Production Stage types — items flow left to right
+// ---------------------------------------------------------------------------
+
+export type WhatToCookItem = {
+  menuItemId: string;
+  cookQuantity: number;
+  batchCount: number;
+  urgency: "normal" | "soon" | "urgent";
+  forecastedDemand: number;
+  currentHoldInventory: number;
+  currentlyCooking: number;
+};
+
+export type CookingBatch = {
+  id: string;
+  menuItemId: string;
   quantity: number;
-  demandInSeconds: number;
-  confidence: number;
+  startedAtSeconds: number;
+  captureMethod: CaptureMethod;
 };
 
-export const DROP_NOW: DropNowItem[] = [
-  { itemId: "chicken-tenders", name: "Chicken Tenders", unit: "pcs", quantity: 10, demandInSeconds: 300, confidence: 0.91 },
-  { itemId: "fries-large", name: "Fries (Large)", unit: "bags", quantity: 6, demandInSeconds: 300, confidence: 0.88 },
-  { itemId: "onion-rings", name: "Onion Rings", unit: "pcs", quantity: 8, demandInSeconds: 300, confidence: 0.84 },
-];
-
-// ---------------------------------------------------------------------------
-// Station: Holding Bin
-// ---------------------------------------------------------------------------
-
-export type FreshnessStatus = "fresh" | "good" | "stale";
-
-export type HoldingBinEntry = {
-  itemId: string;
-  name: string;
-  unit: string;
+export type HeldBatch = {
+  id: string;
+  menuItemId: string;
   quantity: number;
-  cookedMinutesAgo: number;
-  maxHoldMinutes: number;
-  status: FreshnessStatus;
+  heldAtSeconds: number;
+  holdTimeSeconds: number;
 };
 
-export const HOLDING_BIN: HoldingBinEntry[] = [
-  { itemId: "chicken-tenders", name: "Chicken Tenders", unit: "pcs", quantity: 8, cookedMinutesAgo: 2, maxHoldMinutes: 10, status: "fresh" },
-  { itemId: "fries-large", name: "Fries (Large)", unit: "bags", quantity: 4, cookedMinutesAgo: 6, maxHoldMinutes: 7, status: "stale" },
-  { itemId: "onion-rings", name: "Onion Rings", unit: "pcs", quantity: 6, cookedMinutesAgo: 1, maxHoldMinutes: 8, status: "fresh" },
-  { itemId: "fish-fillets", name: "Fish Fillets", unit: "pcs", quantity: 3, cookedMinutesAgo: 4, maxHoldMinutes: 12, status: "good" },
-  { itemId: "mozzarella-sticks", name: "Mozzarella Sticks", unit: "pcs", quantity: 5, cookedMinutesAgo: 8, maxHoldMinutes: 8, status: "stale" },
+export type WasteEntry = {
+  id: string;
+  menuItemId: string;
+  quantity: number;
+  reason: string;
+  estimatedCost: number;
+  confirmed: boolean;
+};
+
+// ---------------------------------------------------------------------------
+// Initial production state for the demo
+// ---------------------------------------------------------------------------
+
+export const INITIAL_WHAT_TO_COOK: WhatToCookItem[] = [
+  {
+    menuItemId: "original-chicken",
+    cookQuantity: 16,
+    batchCount: 2,
+    urgency: "urgent",
+    forecastedDemand: 32,
+    currentHoldInventory: 6,
+    currentlyCooking: 8,
+  },
+  {
+    menuItemId: "french-fries",
+    cookQuantity: 12,
+    batchCount: 2,
+    urgency: "soon",
+    forecastedDemand: 24,
+    currentHoldInventory: 6,
+    currentlyCooking: 6,
+  },
+  {
+    menuItemId: "apple-pie",
+    cookQuantity: 4,
+    batchCount: 1,
+    urgency: "normal",
+    forecastedDemand: 8,
+    currentHoldInventory: 3,
+    currentlyCooking: 0,
+  },
+];
+
+export const INITIAL_COOKING: CookingBatch[] = [
+  {
+    id: "cook-1",
+    menuItemId: "original-chicken",
+    quantity: 8,
+    startedAtSeconds: 240,
+    captureMethod: "camera",
+  },
+  {
+    id: "cook-2",
+    menuItemId: "french-fries",
+    quantity: 6,
+    startedAtSeconds: 90,
+    captureMethod: "voice",
+  },
+];
+
+export const INITIAL_HELD: HeldBatch[] = [
+  {
+    id: "hold-1",
+    menuItemId: "original-chicken",
+    quantity: 6,
+    heldAtSeconds: 284,
+    holdTimeSeconds: 1200,
+  },
+  {
+    id: "hold-2",
+    menuItemId: "french-fries",
+    quantity: 6,
+    heldAtSeconds: 180,
+    holdTimeSeconds: 420,
+  },
+  {
+    id: "hold-3",
+    menuItemId: "apple-pie",
+    quantity: 3,
+    heldAtSeconds: 720,
+    holdTimeSeconds: 1800,
+  },
+  {
+    id: "hold-4",
+    menuItemId: "french-fries",
+    quantity: 4,
+    heldAtSeconds: 350,
+    holdTimeSeconds: 420,
+  },
+];
+
+export const INITIAL_WASTE: WasteEntry[] = [
+  {
+    id: "waste-1",
+    menuItemId: "french-fries",
+    quantity: 3,
+    reason: "Hold time expired",
+    estimatedCost: 1.05,
+    confirmed: false,
+  },
 ];
 
 // ---------------------------------------------------------------------------
-// Station: Upcoming demand (5-min intervals, next 30 min)
+// Dynamic Alerts
 // ---------------------------------------------------------------------------
 
-export type DemandIntensity = "low" | "medium" | "high" | "peak";
+export type AlertType = "weather" | "event" | "demand";
 
-export type UpcomingSlot = {
+export type DynamicAlert = {
+  id: string;
+  type: AlertType;
+  icon: string;
+  title: string;
+  trigger: string;
+  impact: string;
+  action: string;
+  delayMs: number;
+};
+
+export const DEMO_ALERTS: DynamicAlert[] = [
+  {
+    id: "alert-weather",
+    type: "weather",
+    icon: "cloud-rain",
+    title: "WEATHER ALERT",
+    trigger: "Rain started 5 minutes ago.",
+    impact: "Expect an increase in delivery orders over the next 30 minutes.",
+    action:
+      "Cook 1 additional batch of Original Chicken now to stay ahead of demand.",
+    delayMs: 15000,
+  },
+  {
+    id: "alert-event",
+    type: "event",
+    icon: "trophy",
+    title: "LOCAL EVENT",
+    trigger: "Football game ended 10 minutes ago.",
+    impact: "Traffic spike expected in 15\u201320 minutes.",
+    action:
+      "Start 2 extra batches of Fries and 1 batch of Original Chicken now to avoid a stockout at the rush.",
+    delayMs: 45000,
+  },
+  {
+    id: "alert-demand",
+    type: "demand",
+    icon: "trending-down",
+    title: "DEMAND SHIFT",
+    trigger: "POS velocity for Apple Pie has dropped 40% in the last 30 minutes.",
+    impact: "Lower-than-expected demand for this item.",
+    action: "Reduce next cook to 1 batch instead of 2 to avoid waste.",
+    delayMs: 75000,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Dashboard — Reporting mock data
+// ---------------------------------------------------------------------------
+
+export type DashboardPeriod = "day" | "week" | "month" | "year";
+
+export type DashboardKpi = {
   label: string;
-  totalOrders: number;
-  intensity: DemandIntensity;
-};
-
-export const UPCOMING_DEMAND: UpcomingSlot[] = [
-  { label: "11:45", totalOrders: 14, intensity: "medium" },
-  { label: "11:50", totalOrders: 22, intensity: "high" },
-  { label: "11:55", totalOrders: 31, intensity: "peak" },
-  { label: "12:00", totalOrders: 28, intensity: "high" },
-  { label: "12:05", totalOrders: 18, intensity: "medium" },
-  { label: "12:10", totalOrders: 9, intensity: "low" },
-];
-
-// ---------------------------------------------------------------------------
-// Shift: Full-day demand curve (hourly)
-// ---------------------------------------------------------------------------
-
-export type HourlyDemand = {
-  hour: string;
-  predicted: number;
-  actual: number;
-  phase: "opening" | "morning" | "lunch" | "afternoon" | "dinner" | "closing";
-};
-
-export const SHIFT_DEMAND_CURVE: HourlyDemand[] = [
-  { hour: "10 AM", predicted: 20, actual: 18, phase: "opening" },
-  { hour: "11 AM", predicted: 45, actual: 42, phase: "morning" },
-  { hour: "12 PM", predicted: 98, actual: 102, phase: "lunch" },
-  { hour: "1 PM", predicted: 110, actual: 105, phase: "lunch" },
-  { hour: "2 PM", predicted: 65, actual: 60, phase: "afternoon" },
-  { hour: "3 PM", predicted: 35, actual: 38, phase: "afternoon" },
-  { hour: "4 PM", predicted: 30, actual: 28, phase: "afternoon" },
-  { hour: "5 PM", predicted: 72, actual: 70, phase: "dinner" },
-  { hour: "6 PM", predicted: 95, actual: 91, phase: "dinner" },
-  { hour: "7 PM", predicted: 88, actual: 85, phase: "dinner" },
-  { hour: "8 PM", predicted: 55, actual: 52, phase: "closing" },
-  { hour: "9 PM", predicted: 25, actual: 22, phase: "closing" },
-];
-
-// ---------------------------------------------------------------------------
-// Shift: KPI summary
-// ---------------------------------------------------------------------------
-
-export type KpiData = {
-  label: string;
-  value: string;
+  value: number;
   unit: string;
   change: string;
   positive: boolean;
 };
 
-export const KPIS: KpiData[] = [
-  { label: "Forecast Accuracy", value: "87", unit: "%", change: "+3% vs last week", positive: true },
-  { label: "Waste Avoided", value: "12", unit: "lbs ($48)", change: "-18% waste today", positive: true },
-  { label: "Avg Wait Impact", value: "-40", unit: "sec", change: "vs no-forecast baseline", positive: true },
-  { label: "Orders Today", value: "738", unit: "orders", change: "+5% vs forecast", positive: true },
-];
-
-// ---------------------------------------------------------------------------
-// Shift: Item-level forecast vs actual
-// ---------------------------------------------------------------------------
-
-export type ItemForecast = {
-  itemId: string;
-  name: string;
-  category: string;
-  forecasted: number;
-  actual: number;
-  variance: number;
-  wasteLbs: number;
+export const DASHBOARD_KPIS: Record<DashboardPeriod, DashboardKpi[]> = {
+  day: [
+    { label: "Production Accuracy", value: 91, unit: "%", change: "+2% vs yesterday", positive: true },
+    { label: "Stockout Count", value: 2, unit: "events", change: "-3 vs yesterday", positive: true },
+    { label: "Waste Cost", value: 18.4, unit: "$", change: "-$6.20 vs yesterday", positive: true },
+    { label: "Hold Time Violations", value: 1, unit: "events", change: "-2 vs yesterday", positive: true },
+  ],
+  week: [
+    { label: "Production Accuracy", value: 88, unit: "%", change: "+3% vs last week", positive: true },
+    { label: "Stockout Count", value: 12, unit: "events", change: "-5 vs last week", positive: true },
+    { label: "Waste Cost", value: 142.5, unit: "$", change: "-$31 vs last week", positive: true },
+    { label: "Hold Time Violations", value: 8, unit: "events", change: "+2 vs last week", positive: false },
+  ],
+  month: [
+    { label: "Production Accuracy", value: 86, unit: "%", change: "+5% vs last month", positive: true },
+    { label: "Stockout Count", value: 48, unit: "events", change: "-18 vs last month", positive: true },
+    { label: "Waste Cost", value: 589.0, unit: "$", change: "-$124 vs last month", positive: true },
+    { label: "Hold Time Violations", value: 31, unit: "events", change: "-12 vs last month", positive: true },
+  ],
+  year: [
+    { label: "Production Accuracy", value: 82, unit: "%", change: "+12% vs prior year", positive: true },
+    { label: "Stockout Count", value: 580, unit: "events", change: "-220 vs prior year", positive: true },
+    { label: "Waste Cost", value: 7120.0, unit: "$", change: "-$2,840 vs prior year", positive: true },
+    { label: "Hold Time Violations", value: 365, unit: "events", change: "-145 vs prior year", positive: true },
+  ],
 };
 
-export const ITEM_FORECASTS: ItemForecast[] = [
-  { itemId: "chicken-tenders", name: "Chicken Tenders", category: "Protein", forecasted: 240, actual: 232, variance: -3.3, wasteLbs: 1.8 },
-  { itemId: "fries-large", name: "Fries (Large)", category: "Sides", forecasted: 185, actual: 190, variance: 2.7, wasteLbs: 0.5 },
-  { itemId: "fries-regular", name: "Fries (Regular)", category: "Sides", forecasted: 160, actual: 155, variance: -3.1, wasteLbs: 0.8 },
-  { itemId: "onion-rings", name: "Onion Rings", category: "Snacks", forecasted: 120, actual: 115, variance: -4.2, wasteLbs: 1.2 },
-  { itemId: "fish-fillets", name: "Fish Fillets", category: "Protein", forecasted: 85, actual: 82, variance: -3.5, wasteLbs: 0.9 },
-  { itemId: "mozzarella-sticks", name: "Mozzarella Sticks", category: "Snacks", forecasted: 95, actual: 98, variance: 3.2, wasteLbs: 0.3 },
-  { itemId: "chicken-wings", name: "Chicken Wings", category: "Protein", forecasted: 140, actual: 135, variance: -3.6, wasteLbs: 2.1 },
-  { itemId: "corn-dogs", name: "Corn Dogs", category: "Snacks", forecasted: 65, actual: 60, variance: -7.7, wasteLbs: 1.4 },
-];
+export type ForecastVsActualPoint = {
+  label: string;
+  forecast: number;
+  actual: number;
+};
 
-// ---------------------------------------------------------------------------
-// Shift phase config
-// ---------------------------------------------------------------------------
+export const FORECAST_VS_ACTUAL: Record<DashboardPeriod, ForecastVsActualPoint[]> = {
+  day: [
+    { label: "6 AM", forecast: 8, actual: 6 },
+    { label: "8 AM", forecast: 22, actual: 20 },
+    { label: "10 AM", forecast: 45, actual: 48 },
+    { label: "12 PM", forecast: 98, actual: 102 },
+    { label: "2 PM", forecast: 65, actual: 58 },
+    { label: "4 PM", forecast: 40, actual: 42 },
+    { label: "6 PM", forecast: 88, actual: 92 },
+    { label: "8 PM", forecast: 55, actual: 50 },
+    { label: "10 PM", forecast: 15, actual: 12 },
+  ],
+  week: [
+    { label: "Mon", forecast: 320, actual: 310 },
+    { label: "Tue", forecast: 295, actual: 288 },
+    { label: "Wed", forecast: 310, actual: 325 },
+    { label: "Thu", forecast: 340, actual: 335 },
+    { label: "Fri", forecast: 420, actual: 445 },
+    { label: "Sat", forecast: 480, actual: 470 },
+    { label: "Sun", forecast: 350, actual: 340 },
+  ],
+  month: [
+    { label: "Wk 1", forecast: 2200, actual: 2150 },
+    { label: "Wk 2", forecast: 2350, actual: 2400 },
+    { label: "Wk 3", forecast: 2180, actual: 2100 },
+    { label: "Wk 4", forecast: 2420, actual: 2380 },
+  ],
+  year: [
+    { label: "Jan", forecast: 9200, actual: 8800 },
+    { label: "Feb", forecast: 8500, actual: 8200 },
+    { label: "Mar", forecast: 9800, actual: 9600 },
+    { label: "Apr", forecast: 10200, actual: 10500 },
+    { label: "May", forecast: 11000, actual: 10800 },
+    { label: "Jun", forecast: 12500, actual: 12200 },
+    { label: "Jul", forecast: 13000, actual: 13400 },
+    { label: "Aug", forecast: 12800, actual: 12500 },
+    { label: "Sep", forecast: 11500, actual: 11200 },
+    { label: "Oct", forecast: 10800, actual: 10600 },
+    { label: "Nov", forecast: 9500, actual: 9800 },
+    { label: "Dec", forecast: 10500, actual: 10200 },
+  ],
+};
 
-export const SHIFT_PHASES = [
-  { id: "opening", label: "Opening", timeRange: "10 – 11 AM" },
-  { id: "morning", label: "Late Morning", timeRange: "11 AM – 12 PM" },
-  { id: "lunch", label: "Lunch Rush", timeRange: "12 – 2 PM" },
-  { id: "afternoon", label: "Afternoon Lull", timeRange: "2 – 5 PM" },
-  { id: "dinner", label: "Dinner Rush", timeRange: "5 – 8 PM" },
-  { id: "closing", label: "Closing", timeRange: "8 – 10 PM" },
-] as const;
+export type WasteByProduct = {
+  menuItemId: string;
+  name: string;
+  quantity: number;
+  cost: number;
+};
+
+export const WASTE_BY_PRODUCT: Record<DashboardPeriod, WasteByProduct[]> = {
+  day: [
+    { menuItemId: "original-chicken", name: "Original Chicken", quantity: 5, cost: 4.25 },
+    { menuItemId: "french-fries", name: "French Fries", quantity: 18, cost: 6.3 },
+    { menuItemId: "apple-pie", name: "Apple Pie", quantity: 3, cost: 1.95 },
+  ],
+  week: [
+    { menuItemId: "original-chicken", name: "Original Chicken", quantity: 32, cost: 27.2 },
+    { menuItemId: "french-fries", name: "French Fries", quantity: 95, cost: 33.25 },
+    { menuItemId: "apple-pie", name: "Apple Pie", quantity: 18, cost: 11.7 },
+  ],
+  month: [
+    { menuItemId: "original-chicken", name: "Original Chicken", quantity: 128, cost: 108.8 },
+    { menuItemId: "french-fries", name: "French Fries", quantity: 380, cost: 133.0 },
+    { menuItemId: "apple-pie", name: "Apple Pie", quantity: 72, cost: 46.8 },
+  ],
+  year: [
+    { menuItemId: "original-chicken", name: "Original Chicken", quantity: 1540, cost: 1309.0 },
+    { menuItemId: "french-fries", name: "French Fries", quantity: 4560, cost: 1596.0 },
+    { menuItemId: "apple-pie", name: "Apple Pie", quantity: 860, cost: 559.0 },
+  ],
+};

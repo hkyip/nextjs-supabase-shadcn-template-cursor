@@ -6,7 +6,7 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
       <DemoNav />
       <main className="flex-1">{children}</main>
       <footer className="border-t px-4 py-3 text-center text-xs text-muted-foreground">
-        Demo with mock data — no real POS connection
+        Forkcast V0 Demo — mock data, no live connection
       </footer>
     </div>
   );

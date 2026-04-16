@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clock, Flame, TrendingDown, Zap } from "lucide-react";
+import { BarChart3, ChefHat, Clock, LayoutDashboard, ShieldCheck, TrendingDown } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -8,27 +8,43 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 const VALUE_PROPS = [
   {
     icon: TrendingDown,
-    title: "Cut Waste by 30%",
-    description: "AI learns your patterns and stops you from over-frying. Less food in the bin, more profit on the line.",
-  },
-  {
-    icon: Zap,
-    title: "40 Seconds Faster",
+    title: "Reduce Waste 30%+",
     description:
-      "Food is ready when orders hit. Customers get hot, fresh product without the wait.",
+      "AI forecasts demand and coaches operators in real time so you never overproduce.",
   },
   {
     icon: Clock,
-    title: "5-Minute Lookahead",
+    title: "Always Fresh, Always Fast",
     description:
-      "Forecasts demand one cook-cycle ahead so your fryer output matches incoming orders perfectly.",
+      "Hold-time tracking ensures customers get fresh food and staff know exactly when to cook more.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Food Safety Built In",
+    description:
+      "Automated hold-time enforcement prevents violations before they happen.",
   },
 ] as const;
 
 const STEPS = [
-  { step: "1", title: "Connect POS", description: "Plug into your existing point-of-sale system. Setup takes minutes." },
-  { step: "2", title: "AI Analyzes", description: "The model watches order patterns, time of day, weather, and events." },
-  { step: "3", title: "Drop on Cue", description: "Your station screen tells you exactly what to fry and when." },
+  {
+    step: "1",
+    title: "Forecast",
+    description:
+      "The system predicts demand using sales history, weather, events, and real-time POS velocity.",
+  },
+  {
+    step: "2",
+    title: "Cook",
+    description:
+      "Operators see exactly what to cook and when. Camera, voice, or tap to start.",
+  },
+  {
+    step: "3",
+    title: "Hold & Track",
+    description:
+      "Every batch gets a live hold timer. Color-coded urgency keeps food safe and fresh.",
+  },
 ] as const;
 
 export default function LandingPage() {
@@ -37,13 +53,13 @@ export default function LandingPage() {
       {/* Nav */}
       <header className="flex items-center justify-between border-b px-6 py-4">
         <div className="flex items-center gap-2">
-          <Flame className="size-6 text-orange-500" />
-          <span className="text-lg font-bold tracking-tight">FryQ</span>
+          <LayoutDashboard className="size-6 text-emerald-600" />
+          <span className="text-lg font-bold tracking-tight">Forkcast</span>
         </div>
         <div className="flex items-center gap-3">
           <ThemeToggle />
           <Button asChild>
-            <Link href="/station">Try the Demo</Link>
+            <Link href="/production">Try the Demo</Link>
           </Button>
         </div>
       </header>
@@ -51,47 +67,52 @@ export default function LandingPage() {
       {/* Hero */}
       <section className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-24 text-center">
         <div className="inline-flex items-center gap-2 rounded-full border bg-muted px-4 py-1.5 text-sm font-medium text-muted-foreground">
-          <Flame className="size-4 text-orange-500" />
-          AI-powered demand forecasting
+          <ChefHat className="size-4 text-emerald-600" />
+          Real-time production management
         </div>
         <h1 className="max-w-3xl text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
-          Never Fry Blind Again
+          Cook Smarter, Waste Less
         </h1>
         <p className="max-w-xl text-lg text-muted-foreground">
-          Know exactly what to drop in the fryer — and when. FryQ forecasts demand one cook-cycle ahead so food is fresh, fast, and never wasted.
+          Forkcast manages the full food lifecycle — from forecasting what to
+          cook, through active cooking, hot holding, and disposal — all on one
+          screen.
         </p>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap justify-center gap-3">
           <Button asChild size="lg">
-            <Link href="/station">Open Fry Station</Link>
+            <Link href="/production">Open Production Screen</Link>
           </Button>
           <Button asChild variant="outline" size="lg">
-            <Link href="/shift">View Shift Overview</Link>
+            <Link href="/dashboard">
+              <BarChart3 className="mr-2 size-4" />
+              View Dashboard
+            </Link>
           </Button>
         </div>
 
-        {/* Mock station preview */}
-        <div className="mt-8 w-full max-w-2xl rounded-xl border bg-card p-6 text-left shadow-lg">
+        {/* Mini preview */}
+        <div className="mt-8 w-full max-w-3xl rounded-xl border bg-card p-6 text-left shadow-lg">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Drop Now
+              Production Workflow
             </p>
-            <p className="text-xs text-muted-foreground">Demand in 5 min</p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-4">
             {[
-              { name: "Chicken Tenders", qty: 10, unit: "pcs" },
-              { name: "Fries (Large)", qty: 6, unit: "bags" },
-              { name: "Onion Rings", qty: 8, unit: "pcs" },
-            ].map((item) => (
+              { label: "What to Cook", count: "16 pcs", sub: "Original Chicken", color: "border-red-500/30 bg-red-500/5" },
+              { label: "In Progress", count: "2 batches", sub: "Cooking now", color: "border-blue-500/30 bg-blue-500/5" },
+              { label: "Being Held", count: "19 units", sub: "4 batches", color: "border-green-500/30 bg-green-500/5" },
+              { label: "Waste", count: "$1.05", sub: "3 portions", color: "border-red-500/30 bg-red-500/5" },
+            ].map((col) => (
               <div
-                key={item.name}
-                className="rounded-lg border-2 border-orange-500/30 bg-orange-500/5 p-4 text-center"
+                key={col.label}
+                className={`rounded-lg border-2 p-4 text-center ${col.color}`}
               >
-                <p className="text-3xl font-bold">{item.qty}</p>
-                <p className="text-xs text-muted-foreground">
-                  {item.unit}
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {col.label}
                 </p>
-                <p className="mt-1 text-sm font-medium">{item.name}</p>
+                <p className="mt-2 text-2xl font-bold">{col.count}</p>
+                <p className="text-xs text-muted-foreground">{col.sub}</p>
               </div>
             ))}
           </div>
@@ -102,13 +123,13 @@ export default function LandingPage() {
       <section className="border-t bg-muted/50 px-6 py-20">
         <div className="mx-auto max-w-5xl">
           <h2 className="mb-10 text-center text-3xl font-bold tracking-tight">
-            Why Operators Love FryQ
+            Why Operators Choose Forkcast
           </h2>
           <div className="grid gap-6 sm:grid-cols-3">
             {VALUE_PROPS.map((prop) => (
               <Card key={prop.title}>
                 <CardHeader>
-                  <prop.icon className="mb-2 size-8 text-orange-500" />
+                  <prop.icon className="mb-2 size-8 text-emerald-600" />
                   <CardTitle>{prop.title}</CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -131,11 +152,13 @@ export default function LandingPage() {
           <div className="grid gap-8 sm:grid-cols-3">
             {STEPS.map((s) => (
               <div key={s.step} className="text-center">
-                <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-orange-500 text-xl font-bold text-white">
+                <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-emerald-600 text-xl font-bold text-white">
                   {s.step}
                 </div>
                 <h3 className="mb-2 text-lg font-semibold">{s.title}</h3>
-                <p className="text-sm text-muted-foreground">{s.description}</p>
+                <p className="text-sm text-muted-foreground">
+                  {s.description}
+                </p>
               </div>
             ))}
           </div>
@@ -146,7 +169,9 @@ export default function LandingPage() {
       <section className="border-t bg-muted/50 px-6 py-16">
         <blockquote className="mx-auto max-w-2xl text-center">
           <p className="text-lg italic text-muted-foreground">
-            &ldquo;FryQ is like a crystal ball for our fryer station — we prep just the right amount and cut waste by a third.&rdquo;
+            &ldquo;Forkcast is like having a production coach on the line —
+            we prep the right amount, food stays fresh, and waste dropped by
+            a third.&rdquo;
           </p>
           <footer className="mt-4 text-sm font-medium">
             — Demo Store Manager, Store&nbsp;#142
@@ -160,7 +185,7 @@ export default function LandingPage() {
           This is a demo with mock data. No real POS connection required.
         </p>
         <Button asChild size="lg">
-          <Link href="/station">Try the Demo</Link>
+          <Link href="/production">Try the Demo</Link>
         </Button>
       </footer>
     </div>

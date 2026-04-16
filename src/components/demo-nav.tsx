@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Flame, LayoutDashboard, Radio } from "lucide-react";
+import { BarChart3, Camera, ChefHat, LayoutDashboard } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
-  { href: "/station", label: "Fry Station", icon: Radio },
-  { href: "/shift", label: "Shift Overview", icon: LayoutDashboard },
+  { href: "/production", label: "Production", icon: ChefHat },
+  { href: "/camera", label: "Camera", icon: Camera },
+  { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
 ] as const;
 
 export function DemoNav() {
@@ -19,8 +20,8 @@ export function DemoNav() {
     <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex items-center gap-6">
         <Link href="/" className="flex items-center gap-2">
-          <Flame className="size-5 text-orange-500" />
-          <span className="text-base font-bold tracking-tight">FryQ</span>
+          <LayoutDashboard className="size-5 text-emerald-600" />
+          <span className="text-base font-bold tracking-tight">Forkcast</span>
         </Link>
 
         <nav className="flex items-center gap-1">
