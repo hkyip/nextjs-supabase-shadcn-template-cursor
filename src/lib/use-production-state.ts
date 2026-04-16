@@ -287,6 +287,72 @@ function applyCookStartCommand(
   };
 }
 
+function applyHotHoldCommand(
+  state: ProductionState,
+  command: Extract<RemoteCommand, { type: "hot-hold" }>,
+  origin: CommandOrigin,
+): ProductionState {
+  // Promote the oldest cooking batch for this item (highest startedAtSeconds).
+  // We move the entire batch rather than split it — keeping the batch shape
+  // intact mirrors how the natural cook-timer transition in TICK works.
+  const candidates = state.cooking
+    .map((b, idx) => ({ b, idx }))
+    .filter(({ b }) => b.menuItemId === command.menuItemId)
+    .sort((a, b) => b.b.startedAtSeconds - a.b.startedAtSeconds);
+
+  if (candidates.length === 0) {
+    const events = emit(
+      state.events,
+      "hot-hold",
+      command.method,
+      `${narratedLabel(command.method, command.narration)} (no cooking batch to promote)`,
+      methodConfidence(command.method),
+    );
+    return {
+      ...state,
+      events,
+      overlay: buildOverlay(command, origin),
+    };
+  }
+
+  const target = candidates[0];
+  const mi = menuItem(command.menuItemId);
+  const cooking = state.cooking.filter((_, idx) => idx !== target.idx);
+  const held: HeldBatch[] = [
+    ...state.held,
+    {
+      id: nextId("hold"),
+      menuItemId: target.b.menuItemId,
+      quantity: target.b.quantity,
+      heldAtSeconds: 0,
+      holdTimeSeconds: mi.holdTimeSeconds,
+    },
+  ];
+  const whatToCook = recomputeWhatToCook(
+    state.whatToCook,
+    held,
+    cooking,
+    {},
+    null,
+  );
+  const events = emit(
+    state.events,
+    "hot-hold",
+    command.method,
+    narratedLabel(command.method, command.narration),
+    methodConfidence(command.method),
+  );
+
+  return {
+    ...state,
+    cooking,
+    held,
+    whatToCook,
+    events,
+    overlay: buildOverlay(command, origin),
+  };
+}
+
 function applyServedCommand(
   state: ProductionState,
   command: Extract<RemoteCommand, { type: "served" }>,
@@ -521,6 +587,8 @@ function reducer(state: ProductionState, action: Action): ProductionState {
       switch (action.command.type) {
         case "cook-start":
           return applyCookStartCommand(state, action.command, action.origin);
+        case "hot-hold":
+          return applyHotHoldCommand(state, action.command, action.origin);
         case "served":
           return applyServedCommand(state, action.command, action.origin);
         case "disposal":

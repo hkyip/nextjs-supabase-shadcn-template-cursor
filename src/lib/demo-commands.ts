@@ -10,11 +10,24 @@ import type { CaptureMethod } from "@/lib/mock-data";
 // is the single place that applies them.
 // ---------------------------------------------------------------------------
 
-export type RemoteCommandType = "cook-start" | "served" | "disposal";
+export type RemoteCommandType =
+  | "cook-start"
+  | "hot-hold"
+  | "served"
+  | "disposal";
 
 export type CookStartCommand = {
   type: "cook-start";
   menuItemId: string;
+  quantity: number;
+  method: CaptureMethod;
+  narration: string;
+};
+
+export type HotHoldCommand = {
+  type: "hot-hold";
+  menuItemId: string;
+  /** Informational — the reducer promotes the oldest matching cooking batch. */
   quantity: number;
   method: CaptureMethod;
   narration: string;
@@ -36,7 +49,11 @@ export type DisposalCommand = {
   narration: string;
 };
 
-export type RemoteCommand = CookStartCommand | ServedCommand | DisposalCommand;
+export type RemoteCommand =
+  | CookStartCommand
+  | HotHoldCommand
+  | ServedCommand
+  | DisposalCommand;
 
 const captureMethodSchema: z.ZodType<CaptureMethod> = z.enum([
   "camera",
@@ -46,6 +63,14 @@ const captureMethodSchema: z.ZodType<CaptureMethod> = z.enum([
 
 const cookStartSchema = z.object({
   type: z.literal("cook-start"),
+  menuItemId: z.string().min(1),
+  quantity: z.number().int().positive().max(100),
+  method: captureMethodSchema,
+  narration: z.string().min(1).max(200),
+});
+
+const hotHoldSchema = z.object({
+  type: z.literal("hot-hold"),
   menuItemId: z.string().min(1),
   quantity: z.number().int().positive().max(100),
   method: captureMethodSchema,
@@ -68,7 +93,12 @@ const disposalSchema = z.object({
 });
 
 export const remoteCommandSchema: z.ZodType<RemoteCommand> =
-  z.discriminatedUnion("type", [cookStartSchema, servedSchema, disposalSchema]);
+  z.discriminatedUnion("type", [
+    cookStartSchema,
+    hotHoldSchema,
+    servedSchema,
+    disposalSchema,
+  ]);
 
 export function parseRemoteCommand(payload: unknown): RemoteCommand | null {
   const result = remoteCommandSchema.safeParse(payload);

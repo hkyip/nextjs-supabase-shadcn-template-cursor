@@ -19,6 +19,7 @@ import {
   type RemoteCommand,
 } from "@/lib/demo-commands";
 import { statusLabel, useRemoteChannel } from "@/lib/realtime";
+import { speak } from "@/lib/speech";
 import { cn } from "@/lib/utils";
 
 type SentEntry = {
@@ -88,6 +89,9 @@ export function RemoteConsole({ room }: Props) {
   const dispatchScript = useCallback(
     async (script: DemoScript) => {
       setPendingId(script.id);
+      if (script.kind === "voice") {
+        speak(script.command.narration, { lang: "en-US" });
+      }
       const ok = await publish(script.command as RemoteCommand);
       setPendingId(null);
       setSent((prev) =>
@@ -264,6 +268,8 @@ function commandSummary(command: RemoteCommand): string {
   switch (command.type) {
     case "cook-start":
       return `cook-start · ${command.menuItemId} × ${command.quantity}`;
+    case "hot-hold":
+      return `hot-hold · ${command.menuItemId} × ${command.quantity}`;
     case "served":
       return `served · ${command.menuItemId} × ${command.quantity}`;
     case "disposal":

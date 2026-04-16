@@ -18,6 +18,7 @@ import {
   type DemoScript,
   type DemoScriptKind,
 } from "@/lib/demo-commands";
+import { speak } from "@/lib/speech";
 import { useProduction } from "@/lib/use-production-state";
 import { cn } from "@/lib/utils";
 
@@ -136,7 +137,12 @@ export function CommandDeck({ room }: Props) {
                       "h-auto min-h-[36px] border text-xs",
                       meta.buttonClass,
                     )}
-                    onClick={() => applyCommand(script.command, "local")}
+                    onClick={() => {
+                      if (script.kind === "voice") {
+                        speak(script.command.narration, { lang: "en-US" });
+                      }
+                      applyCommand(script.command, "local");
+                    }}
                   >
                     {script.label}
                   </Button>
