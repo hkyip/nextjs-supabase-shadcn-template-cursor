@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Project Template",
-  description: "Industrial starter for Next.js, Vercel, Supabase, and shadcn/ui.",
+  title: "FryQ — AI-Powered Fry Kitchen Forecasting",
+  description: "Demand forecasting for fry kitchen operators. Know what to drop before the rush hits.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
