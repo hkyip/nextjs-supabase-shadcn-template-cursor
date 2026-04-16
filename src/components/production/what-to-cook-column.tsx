@@ -42,7 +42,7 @@ type Props = {
 export function WhatToCookColumn({ items, onStartCooking }: Props) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
+      <div className="sticky top-0 z-20 -mx-1 flex items-center justify-between border-b bg-background px-1 py-2">
         <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
           What to Cook
         </h2>
@@ -64,8 +64,8 @@ export function WhatToCookColumn({ items, onStartCooking }: Props) {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-base font-bold lg:text-lg">{mi.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Cook time: {Math.round(mi.cookTimeSeconds / 60)}min
+                  <p className="text-[11px] font-semibold uppercase tracking-wider tabular-nums text-muted-foreground">
+                    Cook time · {Math.round(mi.cookTimeSeconds / 60)} min
                   </p>
                 </div>
                 <Badge variant="outline" className={cn("text-xs", style.badgeClass)}>
@@ -74,19 +74,42 @@ export function WhatToCookColumn({ items, onStartCooking }: Props) {
               </div>
 
               <div className="text-center">
-                <p className="text-5xl font-black tabular-nums leading-none lg:text-6xl">
+                <p className="text-6xl font-black leading-none tracking-tight tabular-nums lg:text-7xl">
                   {item.cookQuantity}
                 </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {mi.batchMeasurement} / {item.batchCount}{" "}
+                <p className="mt-2 text-xs uppercase tracking-wider text-muted-foreground">
+                  {mi.batchMeasurement} · {item.batchCount}{" "}
                   {item.batchCount === 1 ? "batch" : "batches"}
                 </p>
               </div>
 
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>Forecast: {item.forecastedDemand}</span>
-                <span>Hold: {item.currentHoldInventory}</span>
-                <span>Cooking: {item.currentlyCooking}</span>
+              <div className="grid grid-cols-4 gap-1 rounded-md border bg-background/60 p-2 text-center text-[11px] leading-tight">
+                <div>
+                  <div className="font-semibold tabular-nums">
+                    {item.forecastedDemand}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    Forecast
+                  </div>
+                </div>
+                <div className="text-muted-foreground">
+                  <div className="font-semibold tabular-nums text-foreground">
+                    −{item.currentHoldInventory}
+                  </div>
+                  <div className="text-[10px]">Hold</div>
+                </div>
+                <div className="text-muted-foreground">
+                  <div className="font-semibold tabular-nums text-foreground">
+                    −{item.currentlyCooking}
+                  </div>
+                  <div className="text-[10px]">Cooking</div>
+                </div>
+                <div className="text-muted-foreground">
+                  <div className="font-semibold tabular-nums text-foreground">
+                    {item.soldSinceLastCook}
+                  </div>
+                  <div className="text-[10px]">Sold</div>
+                </div>
               </div>
 
               {item.cookQuantity > 0 && (

@@ -41,6 +41,8 @@ export type MenuItem = {
   batchMeasurement: string;
   batchSize: number;
   foodCostPerUnit: number;
+  /** Average seconds between sales during peak demand. Drives the demo POS simulation. */
+  salesIntervalSeconds: number;
 };
 
 export const MENU_ITEMS: MenuItem[] = [
@@ -52,6 +54,7 @@ export const MENU_ITEMS: MenuItem[] = [
     batchMeasurement: "pieces",
     batchSize: 8,
     foodCostPerUnit: 0.85,
+    salesIntervalSeconds: 22,
   },
   {
     id: "french-fries",
@@ -61,6 +64,7 @@ export const MENU_ITEMS: MenuItem[] = [
     batchMeasurement: "portions",
     batchSize: 6,
     foodCostPerUnit: 0.35,
+    salesIntervalSeconds: 14,
   },
   {
     id: "apple-pie",
@@ -70,6 +74,7 @@ export const MENU_ITEMS: MenuItem[] = [
     batchMeasurement: "pieces",
     batchSize: 4,
     foodCostPerUnit: 0.65,
+    salesIntervalSeconds: 55,
   },
 ];
 
@@ -91,6 +96,7 @@ export type WhatToCookItem = {
   forecastedDemand: number;
   currentHoldInventory: number;
   currentlyCooking: number;
+  soldSinceLastCook: number;
 };
 
 export type CookingBatch = {
@@ -119,6 +125,44 @@ export type WasteEntry = {
 };
 
 // ---------------------------------------------------------------------------
+// Detection events — shared between Production and Camera views
+// ---------------------------------------------------------------------------
+
+export type DetectionEventType =
+  | "cook-start"
+  | "hot-hold"
+  | "inventory"
+  | "disposal";
+
+export type DetectionEvent = {
+  id: string;
+  timestampMs: number;
+  type: DetectionEventType;
+  method: CaptureMethod;
+  label: string;
+  confidence: number;
+};
+
+export const INITIAL_EVENTS: DetectionEvent[] = [
+  {
+    id: "seed-1",
+    timestampMs: Date.now() - 5 * 60 * 1000,
+    type: "cook-start",
+    method: "camera",
+    label: "Cook start detected — Original Chicken (8 pcs)",
+    confidence: 0.97,
+  },
+  {
+    id: "seed-2",
+    timestampMs: Date.now() - 90 * 1000,
+    type: "cook-start",
+    method: "voice",
+    label: "Cook start logged — French Fries (6 portions)",
+    confidence: 0.94,
+  },
+];
+
+// ---------------------------------------------------------------------------
 // Initial production state for the demo
 // ---------------------------------------------------------------------------
 
@@ -131,6 +175,7 @@ export const INITIAL_WHAT_TO_COOK: WhatToCookItem[] = [
     forecastedDemand: 32,
     currentHoldInventory: 6,
     currentlyCooking: 8,
+    soldSinceLastCook: 4,
   },
   {
     menuItemId: "french-fries",
@@ -140,6 +185,7 @@ export const INITIAL_WHAT_TO_COOK: WhatToCookItem[] = [
     forecastedDemand: 24,
     currentHoldInventory: 6,
     currentlyCooking: 6,
+    soldSinceLastCook: 2,
   },
   {
     menuItemId: "apple-pie",
@@ -149,6 +195,7 @@ export const INITIAL_WHAT_TO_COOK: WhatToCookItem[] = [
     forecastedDemand: 8,
     currentHoldInventory: 3,
     currentlyCooking: 0,
+    soldSinceLastCook: 1,
   },
 ];
 
@@ -208,6 +255,67 @@ export const INITIAL_WASTE: WasteEntry[] = [
     reason: "Hold time expired",
     estimatedCost: 1.05,
     confirmed: false,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Demand Factors — drivers of the forecast (Section 1 of the spec)
+// ---------------------------------------------------------------------------
+
+export type DemandFactor = {
+  id: string;
+  label: string;
+  value: string;
+  description: string;
+  trend: "up" | "down" | "neutral";
+};
+
+export const DEMAND_FACTORS: DemandFactor[] = [
+  {
+    id: "historical",
+    label: "Historical Sales",
+    value: "Lunch baseline",
+    description:
+      "Baseline demand pattern by time of day, day of week, and seasonality.",
+    trend: "neutral",
+  },
+  {
+    id: "pos-velocity",
+    label: "POS Velocity",
+    value: "+8% vs. 15-min avg",
+    description:
+      "Real-time sales rate — the most responsive signal for short-term adjustments.",
+    trend: "up",
+  },
+  {
+    id: "weather",
+    label: "Weather",
+    value: "Light rain, 52°F",
+    description:
+      "Precipitation and temperature affect foot traffic and delivery volume.",
+    trend: "up",
+  },
+  {
+    id: "day-date",
+    label: "Day / Date",
+    value: "Thursday lunch rush",
+    description: "Day of week, holidays, and pay-cycle patterns.",
+    trend: "neutral",
+  },
+  {
+    id: "local-event",
+    label: "Local Event",
+    value: "Football kickoff 7:00 PM",
+    description:
+      "Sporting events, concerts, school schedules, and other predictable traffic drivers.",
+    trend: "up",
+  },
+  {
+    id: "promotion",
+    label: "Promotion",
+    value: "Chicken combo LTO active",
+    description: "Active deals, LTOs, or marketing campaigns that shift demand.",
+    trend: "up",
   },
 ];
 
@@ -359,6 +467,67 @@ export type WasteByProduct = {
   quantity: number;
   cost: number;
 };
+
+export type WasteByShift = {
+  shift: "Morning" | "Lunch" | "Afternoon" | "Dinner" | "Late";
+  cost: number;
+};
+
+export const WASTE_BY_SHIFT: Record<DashboardPeriod, WasteByShift[]> = {
+  day: [
+    { shift: "Morning", cost: 2.1 },
+    { shift: "Lunch", cost: 7.4 },
+    { shift: "Afternoon", cost: 3.2 },
+    { shift: "Dinner", cost: 4.8 },
+    { shift: "Late", cost: 0.9 },
+  ],
+  week: [
+    { shift: "Morning", cost: 14.8 },
+    { shift: "Lunch", cost: 52.1 },
+    { shift: "Afternoon", cost: 21.0 },
+    { shift: "Dinner", cost: 46.2 },
+    { shift: "Late", cost: 8.4 },
+  ],
+  month: [
+    { shift: "Morning", cost: 62.5 },
+    { shift: "Lunch", cost: 215.3 },
+    { shift: "Afternoon", cost: 88.1 },
+    { shift: "Dinner", cost: 190.8 },
+    { shift: "Late", cost: 32.3 },
+  ],
+  year: [
+    { shift: "Morning", cost: 740.0 },
+    { shift: "Lunch", cost: 2610.5 },
+    { shift: "Afternoon", cost: 1065.4 },
+    { shift: "Dinner", cost: 2310.0 },
+    { shift: "Late", cost: 394.1 },
+  ],
+};
+
+export type WasteByHourPoint = {
+  hour: string;
+  cost: number;
+};
+
+export const WASTE_BY_HOUR: WasteByHourPoint[] = [
+  { hour: "6 AM", cost: 0.4 },
+  { hour: "7 AM", cost: 0.9 },
+  { hour: "8 AM", cost: 0.8 },
+  { hour: "9 AM", cost: 0.3 },
+  { hour: "10 AM", cost: 0.6 },
+  { hour: "11 AM", cost: 1.8 },
+  { hour: "12 PM", cost: 3.1 },
+  { hour: "1 PM", cost: 2.5 },
+  { hour: "2 PM", cost: 1.2 },
+  { hour: "3 PM", cost: 0.9 },
+  { hour: "4 PM", cost: 1.1 },
+  { hour: "5 PM", cost: 1.6 },
+  { hour: "6 PM", cost: 2.2 },
+  { hour: "7 PM", cost: 1.9 },
+  { hour: "8 PM", cost: 0.7 },
+  { hour: "9 PM", cost: 0.3 },
+  { hour: "10 PM", cost: 0.1 },
+];
 
 export const WASTE_BY_PRODUCT: Record<DashboardPeriod, WasteByProduct[]> = {
   day: [

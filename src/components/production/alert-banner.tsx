@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CloudRain, TrendingDown, Trophy, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Bell,
+  BellOff,
+  CloudRain,
+  TrendingDown,
+  Trophy,
+  X,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import type { DynamicAlert } from "@/lib/mock-data";
@@ -35,9 +42,47 @@ const ALERT_STYLE = {
   },
 } as const;
 
+/** Short two-tone chime synthesized with the Web Audio API — no external asset needed. */
+function playChime() {
+  try {
+    const AudioCtx =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    const tones: Array<[number, number]> = [
+      [880, now],
+      [1320, now + 0.14],
+    ];
+    for (const [freq, start] of tones) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.25);
+    }
+    setTimeout(() => ctx.close(), 600);
+  } catch {
+    // Audio is a progressive enhancement; swallow environment errors silently.
+  }
+}
+
 export function AlertBanner() {
   const [visibleAlerts, setVisibleAlerts] = useState<DynamicAlert[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [soundOn, setSoundOn] = useState(false);
+  const soundOnRef = useRef(soundOn);
+
+  useEffect(() => {
+    soundOnRef.current = soundOn;
+  }, [soundOn]);
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -46,6 +91,7 @@ export function AlertBanner() {
       const timer = setTimeout(() => {
         setVisibleAlerts((prev) => {
           if (prev.some((a) => a.id === alert.id)) return prev;
+          if (soundOnRef.current) playChime();
           return [...prev, alert];
         });
       }, alert.delayMs);
@@ -57,10 +103,30 @@ export function AlertBanner() {
 
   const activeAlerts = visibleAlerts.filter((a) => !dismissed.has(a.id));
 
-  if (activeAlerts.length === 0) return null;
-
   return (
     <div className="space-y-2">
+      <div className="flex items-center justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1.5 text-xs text-muted-foreground"
+          onClick={() => {
+            const next = !soundOn;
+            setSoundOn(next);
+            if (next) playChime();
+          }}
+          aria-pressed={soundOn}
+          aria-label={soundOn ? "Mute alert chime" : "Enable alert chime"}
+        >
+          {soundOn ? (
+            <Bell className="size-3.5" />
+          ) : (
+            <BellOff className="size-3.5" />
+          )}
+          Alert sound: {soundOn ? "on" : "off"}
+        </Button>
+      </div>
+
       {activeAlerts.map((alert) => {
         const style = ALERT_STYLE[alert.type];
         const Icon = ALERT_ICON[alert.icon as keyof typeof ALERT_ICON];
@@ -68,6 +134,7 @@ export function AlertBanner() {
         return (
           <div
             key={alert.id}
+            role="alert"
             className={cn(
               "relative rounded-lg border-2 p-4 animate-in fade-in slide-in-from-top-2 duration-300",
               style.border,
@@ -81,6 +148,7 @@ export function AlertBanner() {
               onClick={() =>
                 setDismissed((prev) => new Set([...prev, alert.id]))
               }
+              aria-label="Dismiss alert"
             >
               <X className="size-4" />
             </Button>

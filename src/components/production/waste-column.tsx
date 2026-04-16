@@ -5,12 +5,12 @@ import { Camera, Hand, Mic, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { WasteEntry } from "@/lib/mock-data";
+import type { CaptureMethod, WasteEntry } from "@/lib/mock-data";
 import { MENU_ITEMS } from "@/lib/mock-data";
 
 type Props = {
   entries: WasteEntry[];
-  onConfirmDisposal: (wasteId: string) => void;
+  onConfirmDisposal: (wasteId: string, method: CaptureMethod) => void;
 };
 
 export function WasteColumn({ entries, onConfirmDisposal }: Props) {
@@ -18,14 +18,11 @@ export function WasteColumn({ entries, onConfirmDisposal }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
+      <div className="sticky top-0 z-20 -mx-1 flex items-center justify-between border-b bg-background px-1 py-2">
         <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
           Waste
         </h2>
-        <Badge
-          variant="destructive"
-          className="text-xs tabular-nums"
-        >
+        <Badge variant="destructive" className="text-xs tabular-nums">
           ${totalCost.toFixed(2)}
         </Badge>
       </div>
@@ -46,8 +43,13 @@ export function WasteColumn({ entries, onConfirmDisposal }: Props) {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-base font-bold lg:text-lg">{mi.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {entry.quantity} {mi.batchMeasurement}
+                  <p className="mt-0.5 flex items-baseline gap-1.5">
+                    <span className="text-lg font-black tabular-nums leading-none">
+                      {entry.quantity}
+                    </span>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {mi.batchMeasurement}
+                    </span>
                   </p>
                 </div>
                 <span className="text-xl font-bold text-red-600 dark:text-red-400">
@@ -61,7 +63,7 @@ export function WasteColumn({ entries, onConfirmDisposal }: Props) {
                 <Button
                   variant="destructive"
                   className="min-h-[44px] flex-1 gap-1.5"
-                  onClick={() => onConfirmDisposal(entry.id)}
+                  onClick={() => onConfirmDisposal(entry.id, "camera")}
                 >
                   <Camera className="size-4" />
                   Camera
@@ -69,7 +71,7 @@ export function WasteColumn({ entries, onConfirmDisposal }: Props) {
                 <Button
                   variant="outline"
                   className="min-h-[44px] flex-1 gap-1.5"
-                  onClick={() => onConfirmDisposal(entry.id)}
+                  onClick={() => onConfirmDisposal(entry.id, "voice")}
                 >
                   <Mic className="size-4" />
                   Voice
@@ -77,7 +79,7 @@ export function WasteColumn({ entries, onConfirmDisposal }: Props) {
                 <Button
                   variant="outline"
                   className="min-h-[44px] flex-1 gap-1.5"
-                  onClick={() => onConfirmDisposal(entry.id)}
+                  onClick={() => onConfirmDisposal(entry.id, "manual")}
                 >
                   <Hand className="size-4" />
                   Manual

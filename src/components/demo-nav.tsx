@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Camera, ChefHat, LayoutDashboard } from "lucide-react";
+import { BarChart3, Camera, ChefHat, LayoutDashboard, Settings } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { href: "/production", label: "Production", icon: ChefHat },
   { href: "/camera", label: "Camera", icon: Camera },
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
+  { href: "/config", label: "Config", icon: Settings },
 ] as const;
 
 export function DemoNav() {

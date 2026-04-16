@@ -2,12 +2,12 @@
 
 import { Camera, Hand, Mic } from "lucide-react";
 
+import { TimerDisplay } from "@/components/production/timer-display";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import type { CookingBatch } from "@/lib/mock-data";
 import { MENU_ITEMS } from "@/lib/mock-data";
-import { formatTimer } from "@/lib/format-time";
 import { cn } from "@/lib/utils";
 
 const METHOD_ICON = {
@@ -29,8 +29,8 @@ type Props = {
 export function CookingColumn({ batches }: Props) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+      <div className="sticky top-0 z-20 -mx-1 flex items-center justify-between border-b bg-background px-1 py-2">
+        <h2 className="text-muted-foreground text-sm font-bold tracking-wider uppercase">
           In Progress
         </h2>
         <Badge variant="secondary" className="text-xs tabular-nums">
@@ -39,7 +39,7 @@ export function CookingColumn({ batches }: Props) {
       </div>
 
       {batches.length === 0 && (
-        <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+        <div className="text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm">
           No items cooking
         </div>
       )}
@@ -71,32 +71,38 @@ export function CookingColumn({ batches }: Props) {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-base font-bold lg:text-lg">{mi.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {batch.quantity} {mi.batchMeasurement}
+                  <p className="mt-0.5 flex items-baseline gap-1.5">
+                    <span className="text-lg font-black tabular-nums leading-none">
+                      {batch.quantity}
+                    </span>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {mi.batchMeasurement}
+                    </span>
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Icon className="size-4 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">
+                  <Icon className="text-muted-foreground size-4" />
+                  <span className="text-muted-foreground text-xs">
                     {METHOD_LABEL[batch.captureMethod]}
                   </span>
                 </div>
               </div>
 
               <div className="text-center">
-                <p
-                  className={cn(
-                    "font-mono text-4xl font-black tabular-nums leading-none lg:text-5xl",
-                    done
-                      ? "text-green-600 dark:text-green-400"
-                      : almostDone
-                        ? "text-yellow-600 dark:text-yellow-400"
-                        : "",
-                  )}
-                >
-                  {done ? "DONE" : formatTimer(remaining)}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
+                {done ? (
+                  <p className="text-5xl font-black leading-none tracking-tight text-green-600 lg:text-6xl dark:text-green-400">
+                    DONE
+                  </p>
+                ) : (
+                  <TimerDisplay
+                    seconds={remaining}
+                    className={cn(
+                      "text-6xl lg:text-7xl",
+                      almostDone && "text-yellow-600 dark:text-yellow-400",
+                    )}
+                  />
+                )}
+                <p className="text-muted-foreground mt-2 text-xs uppercase tracking-wider">
                   {done ? "Ready for hold" : "remaining"}
                 </p>
               </div>

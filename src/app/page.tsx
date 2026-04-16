@@ -1,9 +1,57 @@
 import Link from "next/link";
-import { BarChart3, ChefHat, Clock, LayoutDashboard, ShieldCheck, TrendingDown } from "lucide-react";
+import { BarChart3, ChefHat, Clock, LayoutDashboard, ShieldCheck, Smartphone, TrendingDown } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  INITIAL_COOKING,
+  INITIAL_HELD,
+  INITIAL_WASTE,
+  INITIAL_WHAT_TO_COOK,
+  MENU_ITEMS,
+} from "@/lib/mock-data";
+
+function previewTiles() {
+  const topToCook = [...INITIAL_WHAT_TO_COOK].sort(
+    (a, b) => b.cookQuantity - a.cookQuantity,
+  )[0];
+  const topMi = MENU_ITEMS.find((m) => m.id === topToCook.menuItemId);
+
+  const totalHeld = INITIAL_HELD.reduce((s, b) => s + b.quantity, 0);
+  const totalWasteCost = INITIAL_WASTE.reduce(
+    (s, w) => s + w.estimatedCost,
+    0,
+  );
+  const totalWasteQty = INITIAL_WASTE.reduce((s, w) => s + w.quantity, 0);
+
+  return [
+    {
+      label: "What to Cook",
+      count: `${topToCook.cookQuantity} ${topMi?.batchMeasurement ?? "units"}`,
+      sub: topMi?.name ?? "",
+      color: "border-red-500/30 bg-red-500/5",
+    },
+    {
+      label: "In Progress",
+      count: `${INITIAL_COOKING.length} ${INITIAL_COOKING.length === 1 ? "batch" : "batches"}`,
+      sub: "Cooking now",
+      color: "border-blue-500/30 bg-blue-500/5",
+    },
+    {
+      label: "Being Held",
+      count: `${totalHeld} units`,
+      sub: `${INITIAL_HELD.length} batches`,
+      color: "border-green-500/30 bg-green-500/5",
+    },
+    {
+      label: "Waste",
+      count: `$${totalWasteCost.toFixed(2)}`,
+      sub: `${totalWasteQty} ${totalWasteQty === 1 ? "portion" : "portions"}`,
+      color: "border-red-500/30 bg-red-500/5",
+    },
+  ];
+}
 
 const VALUE_PROPS = [
   {
@@ -48,6 +96,8 @@ const STEPS = [
 ] as const;
 
 export default function LandingPage() {
+  const tiles = previewTiles();
+
   return (
     <div className="flex min-h-screen flex-col">
       {/* Nav */}
@@ -89,6 +139,17 @@ export default function LandingPage() {
             </Link>
           </Button>
         </div>
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Smartphone className="size-3.5" />
+          Open{" "}
+          <Link
+            href="/remote"
+            className="font-medium text-foreground underline decoration-dotted underline-offset-2"
+          >
+            /remote
+          </Link>{" "}
+          on a phone to drive the production screen over the network.
+        </p>
 
         {/* Mini preview */}
         <div className="mt-8 w-full max-w-3xl rounded-xl border bg-card p-6 text-left shadow-lg">
@@ -98,12 +159,7 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-4">
-            {[
-              { label: "What to Cook", count: "16 pcs", sub: "Original Chicken", color: "border-red-500/30 bg-red-500/5" },
-              { label: "In Progress", count: "2 batches", sub: "Cooking now", color: "border-blue-500/30 bg-blue-500/5" },
-              { label: "Being Held", count: "19 units", sub: "4 batches", color: "border-green-500/30 bg-green-500/5" },
-              { label: "Waste", count: "$1.05", sub: "3 portions", color: "border-red-500/30 bg-red-500/5" },
-            ].map((col) => (
+            {tiles.map((col) => (
               <div
                 key={col.label}
                 className={`rounded-lg border-2 p-4 text-center ${col.color}`}

@@ -24,7 +24,9 @@ import type { DashboardPeriod } from "@/lib/mock-data";
 import {
   DASHBOARD_KPIS,
   FORECAST_VS_ACTUAL,
+  WASTE_BY_HOUR,
   WASTE_BY_PRODUCT,
+  WASTE_BY_SHIFT,
 } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
@@ -39,12 +41,21 @@ const wasteConfig = {
   cost: { label: "Waste Cost ($)", color: "oklch(0.65 0.24 30)" },
 } satisfies ChartConfig;
 
+const shiftConfig = {
+  cost: { label: "Waste Cost ($)", color: "oklch(0.72 0.15 60)" },
+} satisfies ChartConfig;
+
+const hourConfig = {
+  cost: { label: "Waste Cost ($)", color: "oklch(0.6 0.2 15)" },
+} satisfies ChartConfig;
+
 export function DashboardShell() {
   const [period, setPeriod] = useState<DashboardPeriod>("day");
 
   const kpis = DASHBOARD_KPIS[period];
   const forecastData = FORECAST_VS_ACTUAL[period];
   const wasteData = WASTE_BY_PRODUCT[period];
+  const shiftData = WASTE_BY_SHIFT[period];
   const totalWasteCost = wasteData.reduce((s, w) => s + w.cost, 0);
 
   return (
@@ -166,6 +177,66 @@ export function DashboardShell() {
                 <YAxis tickLine={false} axisLine={false} fontSize={12} />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Bar dataKey="cost" fill="var(--color-cost)" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Waste breakdown — shift + hour of day */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Waste by Shift</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Where overproduction concentrates across the day
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={shiftConfig} className="h-[240px] w-full">
+              <BarChart
+                data={shiftData}
+                margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <XAxis
+                  dataKey="shift"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={12}
+                />
+                <YAxis tickLine={false} axisLine={false} fontSize={12} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="cost" fill="var(--color-cost)" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Waste by Hour of Day</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Typical daily profile (representative day)
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={hourConfig} className="h-[240px] w-full">
+              <BarChart
+                data={WASTE_BY_HOUR}
+                margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <XAxis
+                  dataKey="hour"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={10}
+                  interval={1}
+                />
+                <YAxis tickLine={false} axisLine={false} fontSize={12} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="cost" fill="var(--color-cost)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ChartContainer>
           </CardContent>

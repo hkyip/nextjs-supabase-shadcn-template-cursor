@@ -1,33 +1,113 @@
 "use client";
 
-import { useProductionState } from "@/lib/use-production-state";
-import { WhatToCookColumn } from "@/components/production/what-to-cook-column";
+import { useCallback, useEffect, useState } from "react";
+import { Maximize2, Minimize2 } from "lucide-react";
+
+import { AlertBanner } from "@/components/production/alert-banner";
+import { CommandDeck } from "@/components/production/command-deck";
+import { CommandOverlay } from "@/components/production/command-overlay";
 import { CookingColumn } from "@/components/production/cooking-column";
 import { HeldColumn } from "@/components/production/held-column";
 import { WasteColumn } from "@/components/production/waste-column";
-import { AlertBanner } from "@/components/production/alert-banner";
+import { WhatToCookColumn } from "@/components/production/what-to-cook-column";
+import { Button } from "@/components/ui/button";
+import type { RemoteCommand } from "@/lib/demo-commands";
+import { useRemoteChannel } from "@/lib/realtime";
+import { useProduction } from "@/lib/use-production-state";
+import { cn } from "@/lib/utils";
 
-export function ProductionBoard() {
-  const { state, startCooking, confirmDisposal } = useProductionState();
+type Props = {
+  room: string;
+};
+
+export function ProductionBoard({ room }: Props) {
+  const { state, startCooking, confirmDisposal, applyCommand } =
+    useProduction();
+  const [fullscreen, setFullscreen] = useState(false);
+
+  const handleRemoteCommand = useCallback(
+    (command: RemoteCommand) => {
+      applyCommand(command, "remote");
+    },
+    [applyCommand],
+  );
+
+  // Subscribe to remote commands for this room. Returned publish is unused here —
+  // the production screen only receives commands; the /remote controller publishes them.
+  useRemoteChannel({ room, onCommand: handleRemoteCommand });
+
+  // Keep local state in sync with the browser Fullscreen API (Esc key, OS chrome, etc.)
+  useEffect(() => {
+    const handleChange = () => {
+      if (!document.fullscreenElement) setFullscreen(false);
+    };
+    document.addEventListener("fullscreenchange", handleChange);
+    return () => document.removeEventListener("fullscreenchange", handleChange);
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    const next = !fullscreen;
+    setFullscreen(next);
+    try {
+      if (next && !document.fullscreenElement) {
+        await document.documentElement.requestFullscreen?.();
+      } else if (!next && document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+    } catch {
+      // Browser may reject (iframe, sandbox, iOS Safari) — CSS presentation mode still works.
+    }
+  }, [fullscreen]);
+
+  // Only turn each column into its own scroll container when we actually have a
+  // height cap (fullscreen, or lg+ screens). On smaller screens without a cap the
+  // page scrolls and sticky column headers anchor to the viewport instead of a
+  // zero-height scroll parent.
+  const columnScroll = fullscreen
+    ? "flex min-h-0 flex-col gap-3 overflow-y-auto max-h-[calc(100vh-7rem)]"
+    : "flex min-h-0 flex-col gap-3 lg:overflow-y-auto lg:max-h-[calc(100vh-10rem)]";
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={cn(
+        "flex flex-col gap-4",
+        fullscreen &&
+          "bg-background fixed inset-0 z-40 overflow-auto p-3 lg:p-4",
+      )}
+    >
+      <CommandOverlay />
+
+      <Button
+        variant={fullscreen ? "secondary" : "default"}
+        className="fixed bottom-3 right-3 z-50 size-11 rounded-full p-0 shadow-lg lg:bottom-4 lg:right-4"
+        onClick={() => void toggleFullscreen()}
+        aria-pressed={fullscreen}
+        aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+        title={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+      >
+        {fullscreen ? (
+          <Minimize2 className="size-5" />
+        ) : (
+          <Maximize2 className="size-5" />
+        )}
+      </Button>
+
       <AlertBanner />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="flex flex-col gap-3 overflow-y-auto lg:max-h-[calc(100vh-10rem)]">
+        <div className={columnScroll}>
           <WhatToCookColumn
             items={state.whatToCook}
             onStartCooking={startCooking}
           />
         </div>
-        <div className="flex flex-col gap-3 overflow-y-auto lg:max-h-[calc(100vh-10rem)]">
+        <div className={columnScroll}>
           <CookingColumn batches={state.cooking} />
         </div>
-        <div className="flex flex-col gap-3 overflow-y-auto lg:max-h-[calc(100vh-10rem)]">
+        <div className={columnScroll}>
           <HeldColumn batches={state.held} />
         </div>
-        <div className="flex flex-col gap-3 overflow-y-auto lg:max-h-[calc(100vh-10rem)]">
+        <div className={columnScroll}>
           <WasteColumn
             entries={state.waste}
             onConfirmDisposal={confirmDisposal}
