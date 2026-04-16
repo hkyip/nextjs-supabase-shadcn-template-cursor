@@ -97,19 +97,20 @@ export function CommandDeck({ room }: Props) {
   return (
     <section
       aria-label="Demo command deck"
-      className="rounded-lg border bg-card p-3 shadow-sm"
+      className="bg-card rounded-lg border p-3 shadow-sm"
     >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+          <h2 className="text-muted-foreground text-sm font-bold tracking-wider uppercase">
             Command Deck
           </h2>
           <Badge variant="secondary" className="text-[10px] tabular-nums">
             Room: {room}
           </Badge>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Simulate inbound voice/camera commands — or pair a phone to drive them remotely
+        <p className="text-muted-foreground text-xs">
+          Simulate inbound voice/camera commands — or pair a phone to drive them
+          remotely
         </p>
       </div>
 
@@ -121,7 +122,7 @@ export function CommandDeck({ room }: Props) {
           const Icon = meta.icon;
           return (
             <div key={kind} className="flex flex-wrap items-center gap-2">
-              <span className="flex w-20 shrink-0 items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="text-muted-foreground flex w-20 shrink-0 items-center gap-1.5 text-xs font-semibold tracking-wider uppercase">
                 <Icon className="size-3.5" />
                 {meta.label}
               </span>
@@ -146,11 +147,11 @@ export function CommandDeck({ room }: Props) {
         })}
       </div>
 
-      <details className="group mt-3 rounded-md border bg-muted/40 px-3 py-2">
-        <summary className="flex cursor-pointer items-center gap-2 text-xs font-medium text-foreground">
+      <details className="group bg-muted/40 mt-3 rounded-md border px-3 py-2">
+        <summary className="text-foreground flex cursor-pointer items-center gap-2 text-xs font-medium">
           <Smartphone className="size-3.5" />
           Pair a remote controller
-          <span className="ml-auto text-[11px] text-muted-foreground group-open:hidden">
+          <span className="text-muted-foreground ml-auto text-[11px] group-open:hidden">
             scan QR or copy link
           </span>
         </summary>
@@ -160,7 +161,7 @@ export function CommandDeck({ room }: Props) {
             {remoteUrl ? (
               <QRCodeSVG value={remoteUrl} size={140} level="M" />
             ) : (
-              <div className="size-[140px] animate-pulse rounded bg-muted" />
+              <div className="bg-muted size-[140px] animate-pulse rounded" />
             )}
           </div>
           <div className="min-w-0 flex-1 space-y-2 text-xs">
@@ -169,7 +170,7 @@ export function CommandDeck({ room }: Props) {
               screens stay in sync over Supabase Realtime.
             </p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 truncate rounded bg-background px-2 py-1 font-mono text-[11px]">
+              <code className="bg-background flex-1 truncate rounded px-2 py-1 font-mono text-[11px]">
                 {remoteUrl ?? ""}
               </code>
               <Button
@@ -196,13 +197,14 @@ export function CommandDeck({ room }: Props) {
                 </Button>
               )}
             </div>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-muted-foreground text-[11px]">
               Room code{" "}
-              <span className="rounded bg-background px-1 py-0.5 font-mono">
+              <span className="bg-background rounded px-1 py-0.5 font-mono">
                 {room}
               </span>{" "}
-              — anyone with this code on the same Supabase project can drive the screen.
-              Running multiple production tablets on one room will cause state drift.
+              — anyone with this code on the same Supabase project can drive the
+              screen. Running multiple production tablets on one room will cause
+              state drift.
             </p>
           </div>
         </div>

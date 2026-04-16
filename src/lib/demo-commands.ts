@@ -67,14 +67,10 @@ const disposalSchema = z.object({
   narration: z.string().min(1).max(200),
 });
 
-export const remoteCommandSchema: z.ZodType<RemoteCommand> = z.discriminatedUnion(
-  "type",
-  [cookStartSchema, servedSchema, disposalSchema],
-);
+export const remoteCommandSchema: z.ZodType<RemoteCommand> =
+  z.discriminatedUnion("type", [cookStartSchema, servedSchema, disposalSchema]);
 
-export function parseRemoteCommand(
-  payload: unknown,
-): RemoteCommand | null {
+export function parseRemoteCommand(payload: unknown): RemoteCommand | null {
   const result = remoteCommandSchema.safeParse(payload);
   return result.success ? result.data : null;
 }

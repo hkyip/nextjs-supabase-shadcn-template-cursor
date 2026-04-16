@@ -1,10 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type {
-  RealtimeChannel,
-  SupabaseClient,
-} from "@supabase/supabase-js";
+import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 
 import type { RemoteCommand } from "@/lib/demo-commands";
 import { parseRemoteCommand } from "@/lib/demo-commands";
@@ -17,11 +14,7 @@ import { createClient } from "@/lib/supabase/client";
 // when env vars are missing so the local Command Deck keeps working.
 // ---------------------------------------------------------------------------
 
-export type RemoteStatus =
-  | "disabled"
-  | "connecting"
-  | "connected"
-  | "error";
+export type RemoteStatus = "disabled" | "connecting" | "connected" | "error";
 
 const BROADCAST_EVENT = "command";
 
