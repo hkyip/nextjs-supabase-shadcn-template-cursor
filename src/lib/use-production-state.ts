@@ -774,8 +774,7 @@ function createInitialProductionState(): ProductionState {
     const mi = menuItem(b.menuItemId);
     return {
       ...b,
-      targetReadyAtMs:
-        now + (mi.cookTimeSeconds - b.startedAtSeconds) * 1000,
+      targetReadyAtMs: now + (mi.cookTimeSeconds - b.startedAtSeconds) * 1000,
     };
   });
   return {
@@ -843,7 +842,13 @@ export function ProductionProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<ProductionContextValue>(
-    () => ({ state, startCooking, fulfillOrder, confirmDisposal, applyCommand }),
+    () => ({
+      state,
+      startCooking,
+      fulfillOrder,
+      confirmDisposal,
+      applyCommand,
+    }),
     [state, startCooking, fulfillOrder, confirmDisposal, applyCommand],
   );
 
