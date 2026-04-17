@@ -105,6 +105,8 @@ export type CookingBatch = {
   quantity: number;
   startedAtSeconds: number;
   captureMethod: CaptureMethod;
+  /** Wall-clock instant when standard cook time should be done (set in production state). */
+  targetReadyAtMs: number;
 };
 
 export type HeldBatch = {
@@ -199,6 +201,7 @@ export const INITIAL_WHAT_TO_COOK: WhatToCookItem[] = [
   },
 ];
 
+/** `targetReadyAtMs` is a placeholder until the client provider assigns real wall times. */
 export const INITIAL_COOKING: CookingBatch[] = [
   {
     id: "cook-1",
@@ -206,6 +209,7 @@ export const INITIAL_COOKING: CookingBatch[] = [
     quantity: 8,
     startedAtSeconds: 240,
     captureMethod: "camera",
+    targetReadyAtMs: 0,
   },
   {
     id: "cook-2",
@@ -213,6 +217,7 @@ export const INITIAL_COOKING: CookingBatch[] = [
     quantity: 6,
     startedAtSeconds: 90,
     captureMethod: "voice",
+    targetReadyAtMs: 0,
   },
 ];
 

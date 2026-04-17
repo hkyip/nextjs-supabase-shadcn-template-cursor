@@ -85,3 +85,24 @@ html {
 body {
   @apply bg-background text-foreground min-h-screen antialiased;
 }
+
+/* Short highlight when production cards update (incoming ↔ hold, etc.) */
+@keyframes production-card-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    transform: scale(1);
+  }
+  35% {
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 55%, transparent);
+    transform: scale(1.02);
+  }
+  65% {
+    box-shadow: 0 0 12px 1px color-mix(in oklch, var(--ring) 35%, transparent);
+    transform: scale(1.01);
+  }
+}
+
+.animate-production-card-pulse {
+  animation: production-card-pulse 0.75s ease-in-out 2;
+}

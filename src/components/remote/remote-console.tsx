@@ -106,11 +106,11 @@ export function RemoteConsole({ room }: Props) {
       }
       const ok = await publish(script.command as RemoteCommand);
       setPendingId(null);
-      setSent((prev) =>
+      setSent((prev): SentEntry[] =>
         [
           {
             id: `${script.id}-${Date.now()}`,
-            variant: "script",
+            variant: "script" as const,
             script,
             at: Date.now(),
             ok,
@@ -136,11 +136,11 @@ export function RemoteConsole({ room }: Props) {
       };
       const ok = await publish(command);
       setPendingId(null);
-      setSent((prev) =>
+      setSent((prev): SentEntry[] =>
         [
           {
             id: `${key}-${Date.now()}`,
-            variant: "serving",
+            variant: "serving" as const,
             title: "Serving order",
             detail: `1× ${name} → Incoming on production`,
             at: Date.now(),

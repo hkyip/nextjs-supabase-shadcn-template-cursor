@@ -1,7 +1,12 @@
 "use client";
 
-import { Camera, Hand, Mic, Radio, Store } from "lucide-react";
+import { Radio, Store } from "lucide-react";
 
+import {
+  formatWallClockMs,
+  METHOD_BUTTONS,
+} from "@/components/production/capture-method-affordance";
+import { useKeyedQuantityPulse } from "@/components/production/use-keyed-quantity-pulse";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,49 +15,17 @@ import { MENU_ITEMS } from "@/lib/mock-data";
 import type { IncomingOrder } from "@/lib/use-production-state";
 import { cn } from "@/lib/utils";
 
-const METHOD_BUTTONS: Array<{
-  method: CaptureMethod;
-  label: string;
-  icon: typeof Camera;
-  className: string;
-}> = [
-  {
-    method: "camera",
-    label: "Camera",
-    icon: Camera,
-    className:
-      "border-purple-400/50 bg-purple-500/10 hover:bg-purple-500/20 text-purple-900 dark:text-purple-100",
-  },
-  {
-    method: "voice",
-    label: "Voice",
-    icon: Mic,
-    className:
-      "border-blue-400/50 bg-blue-500/10 hover:bg-blue-500/20 text-blue-900 dark:text-blue-100",
-  },
-  {
-    method: "manual",
-    label: "Manual",
-    icon: Hand,
-    className:
-      "border-muted-foreground/30 bg-muted hover:bg-muted/80 text-foreground",
-  },
-];
-
 type Props = {
   orders: IncomingOrder[];
   onFulfill: (orderId: string, method: CaptureMethod) => void;
 };
 
-function formatTime(ms: number): string {
-  return new Date(ms).toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
 export function IncomingOrdersColumn({ orders, onFulfill }: Props) {
+  const pulsing = useKeyedQuantityPulse(orders, {
+    pulseOnAdd: true,
+    pulseOnDecrease: true,
+  });
+
   return (
     <div className="flex flex-col gap-3">
       <div className="bg-background sticky top-0 z-20 -mx-1 space-y-1 border-b px-1 py-2">
@@ -64,13 +37,7 @@ export function IncomingOrdersColumn({ orders, onFulfill }: Props) {
             {orders.length}
           </Badge>
         </div>
-        <p className="text-muted-foreground text-[10px] leading-snug">
-          <span className="font-mono">/pos</span> and <span className="font-mono">
-            /remote
-          </span>{" "}
-          <strong>Serving orders</strong> queue here. Command deck scripts (no{" "}
-          <span className="font-mono">orderSource</span>) still deduct hold immediately.
-        </p>
+        <p className="text-muted-foreground text-[10px] leading-snug"></p>
       </div>
 
       {orders.length === 0 ? (
@@ -86,10 +53,11 @@ export function IncomingOrdersColumn({ orders, onFulfill }: Props) {
             <Card
               key={order.id}
               className={cn(
-                "border-2",
+                "border-2 transition-shadow",
                 fromPos
                   ? "border-orange-400/50 bg-orange-500/5"
                   : "border-sky-400/50 bg-sky-500/5",
+                pulsing.has(order.id) && "animate-production-card-pulse",
               )}
             >
               <CardContent className="space-y-3 p-4">
@@ -107,7 +75,7 @@ export function IncomingOrdersColumn({ orders, onFulfill }: Props) {
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <span className="text-muted-foreground text-[10px] tabular-nums">
-                      {formatTime(order.receivedAtMs)}
+                      {formatWallClockMs(order.receivedAtMs)}
                     </span>
                     {fromPos ? (
                       <Badge

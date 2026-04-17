@@ -18,8 +18,8 @@ export function WasteColumn({ entries, onConfirmDisposal }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="sticky top-0 z-20 -mx-1 flex items-center justify-between border-b bg-background px-1 py-2">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+      <div className="bg-background sticky top-0 z-20 -mx-1 flex items-center justify-between border-b px-1 py-2">
+        <h2 className="text-muted-foreground text-sm font-bold tracking-wider uppercase">
           Waste
         </h2>
         <Badge variant="destructive" className="text-xs tabular-nums">
@@ -28,8 +28,8 @@ export function WasteColumn({ entries, onConfirmDisposal }: Props) {
       </div>
 
       {entries.length === 0 && (
-        <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-          <Trash2 className="mx-auto mb-2 size-5 text-muted-foreground/50" />
+        <div className="text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm">
+          <Trash2 className="text-muted-foreground/50 mx-auto mb-2 size-5" />
           No waste items
         </div>
       )}
@@ -38,16 +38,19 @@ export function WasteColumn({ entries, onConfirmDisposal }: Props) {
         const mi = MENU_ITEMS.find((m) => m.id === entry.menuItemId)!;
 
         return (
-          <Card key={entry.id} className="border-2 border-red-500/30 bg-red-500/5">
+          <Card
+            key={entry.id}
+            className="border-2 border-red-500/30 bg-red-500/5"
+          >
             <CardContent className="space-y-3 p-4 lg:p-5">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-base font-bold lg:text-lg">{mi.name}</p>
                   <p className="mt-0.5 flex items-baseline gap-1.5">
-                    <span className="text-lg font-black tabular-nums leading-none">
+                    <span className="text-lg leading-none font-black tabular-nums">
                       {entry.quantity}
                     </span>
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
                       {mi.batchMeasurement}
                     </span>
                   </p>
@@ -57,7 +60,7 @@ export function WasteColumn({ entries, onConfirmDisposal }: Props) {
                 </span>
               </div>
 
-              <p className="text-xs text-muted-foreground">{entry.reason}</p>
+              <p className="text-muted-foreground text-xs">{entry.reason}</p>
 
               <div className="flex gap-2">
                 <Button

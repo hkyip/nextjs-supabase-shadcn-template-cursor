@@ -6,7 +6,7 @@ type Props = {
 };
 
 /**
- * Large countdown numerals for production cards.
+ * Large M:SS duration numerals for production cards (elapsed or remaining).
  *
  * We render `M`, `:`, `SS` as separate spans so we can:
  *   - Keep digits on `tabular-nums` (aligned column widths while ticking)

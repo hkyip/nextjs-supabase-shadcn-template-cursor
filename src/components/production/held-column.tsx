@@ -1,5 +1,6 @@
 "use client";
 
+import { useKeyedQuantityPulse } from "@/components/production/use-keyed-quantity-pulse";
 import { TimerDisplay } from "@/components/production/timer-display";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,10 +52,14 @@ type Props = {
 
 export function HeldColumn({ batches }: Props) {
   const totalUnits = batches.reduce((sum, b) => sum + b.quantity, 0);
+  const pulsing = useKeyedQuantityPulse(batches, {
+    pulseOnAdd: false,
+    pulseOnDecrease: true,
+  });
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="sticky top-0 z-20 -mx-1 flex items-center justify-between border-b bg-background px-1 py-2">
+      <div className="bg-background sticky top-0 z-20 -mx-1 flex items-center justify-between border-b px-1 py-2">
         <h2 className="text-muted-foreground text-sm font-bold tracking-wider uppercase">
           Being Held
         </h2>
@@ -82,17 +87,22 @@ export function HeldColumn({ batches }: Props) {
         return (
           <Card
             key={batch.id}
-            className={cn("border-2 transition-colors", style.border, style.bg)}
+            className={cn(
+              "border-2 transition-colors transition-shadow",
+              style.border,
+              style.bg,
+              pulsing.has(batch.id) && "animate-production-card-pulse",
+            )}
           >
             <CardContent className="space-y-2 p-4 lg:p-5">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-base font-bold lg:text-lg">{mi.name}</p>
                   <p className="mt-0.5 flex items-baseline gap-1.5">
-                    <span className="text-lg font-black tabular-nums leading-none">
+                    <span className="text-lg leading-none font-black tabular-nums">
                       {batch.quantity}
                     </span>
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
                       {mi.batchMeasurement}
                     </span>
                   </p>
@@ -110,7 +120,7 @@ export function HeldColumn({ batches }: Props) {
                   seconds={Math.max(0, remaining)}
                   className={cn("text-6xl lg:text-7xl", style.text)}
                 />
-                <p className="text-muted-foreground mt-2 text-xs uppercase tracking-wider">
+                <p className="text-muted-foreground mt-2 text-xs tracking-wider uppercase">
                   remaining
                 </p>
               </div>

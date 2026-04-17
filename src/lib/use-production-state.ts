@@ -274,12 +274,14 @@ function applyCookStartCommand(
   command: Extract<RemoteCommand, { type: "cook-start" }>,
   origin: CommandOrigin,
 ): ProductionState {
+  const mi = menuItem(command.menuItemId);
   const batch: CookingBatch = {
     id: nextId("cook"),
     menuItemId: command.menuItemId,
     quantity: command.quantity,
     startedAtSeconds: 0,
     captureMethod: command.method,
+    targetReadyAtMs: Date.now() + mi.cookTimeSeconds * 1000,
   };
   const cooking = [...state.cooking, batch];
   const whatToCook = recomputeWhatToCook(
@@ -686,6 +688,7 @@ function reducer(state: ProductionState, action: Action): ProductionState {
         quantity: action.quantity,
         startedAtSeconds: 0,
         captureMethod: action.captureMethod,
+        targetReadyAtMs: Date.now() + mi.cookTimeSeconds * 1000,
       };
 
       const cooking = [...state.cooking, batch];
@@ -765,17 +768,28 @@ function reducer(state: ProductionState, action: Action): ProductionState {
 // Provider + hook
 // ---------------------------------------------------------------------------
 
-const initialState: ProductionState = {
-  whatToCook: INITIAL_WHAT_TO_COOK,
-  cooking: INITIAL_COOKING,
-  held: INITIAL_HELD,
-  incomingOrders: [],
-  waste: INITIAL_WASTE,
-  events: INITIAL_EVENTS,
-  elapsed: 0,
-  lastSaleAt: {},
-  overlay: null,
-};
+function createInitialProductionState(): ProductionState {
+  const now = Date.now();
+  const cooking = INITIAL_COOKING.map((b) => {
+    const mi = menuItem(b.menuItemId);
+    return {
+      ...b,
+      targetReadyAtMs:
+        now + (mi.cookTimeSeconds - b.startedAtSeconds) * 1000,
+    };
+  });
+  return {
+    whatToCook: INITIAL_WHAT_TO_COOK,
+    cooking,
+    held: INITIAL_HELD,
+    incomingOrders: [],
+    waste: INITIAL_WASTE,
+    events: INITIAL_EVENTS,
+    elapsed: 0,
+    lastSaleAt: {},
+    overlay: null,
+  };
+}
 
 export type ProductionContextValue = {
   state: ProductionState;
@@ -792,7 +806,11 @@ export type ProductionContextValue = {
 const ProductionContext = createContext<ProductionContextValue | null>(null);
 
 export function ProductionProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(
+    reducer,
+    undefined,
+    createInitialProductionState,
+  );
 
   useEffect(() => {
     const id = setInterval(() => dispatch({ type: "TICK" }), 1000);
