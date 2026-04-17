@@ -45,14 +45,26 @@ export type CommandOverlay = {
   at: number;
 };
 
+/** Queued tickets from `/pos` or `/remote` serving — fulfilled on the line from hot hold. */
+export type IncomingOrder = {
+  id: string;
+  menuItemId: string;
+  quantity: number;
+  narration: string;
+  orderSource: "pos" | "remote";
+  receivedAtMs: number;
+};
+
 export type ProductionState = {
   whatToCook: WhatToCookItem[];
   cooking: CookingBatch[];
   held: HeldBatch[];
+  /** Orders waiting to be pulled from hot hold (camera / voice / manual). */
+  incomingOrders: IncomingOrder[];
   waste: WasteEntry[];
   events: DetectionEvent[];
   elapsed: number;
-  /** Seconds-of-elapsed at which a sale last occurred for each menu item. */
+  /** Seconds-of-elapsed at which a simulated lane order was last enqueued per item. */
   lastSaleAt: Record<string, number>;
   overlay: CommandOverlay | null;
 };
@@ -75,6 +87,11 @@ type Action =
   | {
       type: "CONFIRM_DISPOSAL";
       wasteId: string;
+      method: CaptureMethod;
+    }
+  | {
+      type: "FULFILL_ORDER";
+      orderId: string;
       method: CaptureMethod;
     }
   | {
@@ -153,6 +170,7 @@ function buildOverlay(
  * Cook Quantity = max(0, forecastedDemand - currentHoldInventory - currentlyCooking).
  * We intentionally omit "sold since last cook" from the formula itself (it's already baked
  * into the live hold inventory); the field is exposed on the tile for transparency.
+ * Incoming POS orders queue separately until fulfilled from hot hold.
  */
 function computeCookQuantity(
   item: WhatToCookItem,
@@ -353,7 +371,40 @@ function applyHotHoldCommand(
   };
 }
 
-function applyServedCommand(
+function applyEnqueueServedCommand(
+  state: ProductionState,
+  command: Extract<RemoteCommand, { type: "served" }>,
+  origin: CommandOrigin,
+): ProductionState {
+  const src = command.orderSource;
+  if (src !== "pos" && src !== "remote") return state;
+
+  const mi = menuItem(command.menuItemId);
+  const order: IncomingOrder = {
+    id: nextId("ord"),
+    menuItemId: command.menuItemId,
+    quantity: command.quantity,
+    narration: command.narration,
+    orderSource: src,
+    receivedAtMs: Date.now(),
+  };
+  const lane = src === "pos" ? "POS" : "Remote";
+  const events = emit(
+    state.events,
+    "inventory",
+    command.method,
+    `${narratedLabel(command.method, command.narration)} · ${lane} incoming (${command.quantity}× ${mi.name})`,
+    methodConfidence(command.method),
+  );
+  return {
+    ...state,
+    incomingOrders: [...state.incomingOrders, order],
+    events,
+    overlay: buildOverlay(command, origin),
+  };
+}
+
+function applyDirectServedCommand(
   state: ProductionState,
   command: Extract<RemoteCommand, { type: "served" }>,
   origin: CommandOrigin,
@@ -363,20 +414,44 @@ function applyServedCommand(
     command.menuItemId,
     command.quantity,
   );
+  const unfulfilled = command.quantity - sold;
+  const whatToCookBase =
+    unfulfilled > 0
+      ? state.whatToCook.map((item) =>
+          item.menuItemId === command.menuItemId
+            ? {
+                ...item,
+                forecastedDemand: item.forecastedDemand + unfulfilled,
+              }
+            : item,
+        )
+      : state.whatToCook;
+
   const soldDelta = sold > 0 ? { [command.menuItemId]: sold } : {};
   const whatToCook = recomputeWhatToCook(
-    state.whatToCook,
+    whatToCookBase,
     held,
     state.cooking,
     soldDelta,
     null,
   );
-  const tail = sold < command.quantity ? ` (only ${sold} in hold)` : "";
+  const tail =
+    sold === 0 && command.quantity > 0
+      ? " (nothing in hot hold)"
+      : sold < command.quantity
+        ? ` (only ${sold} in hot hold)`
+        : sold > 0
+          ? " · pulled from hot hold"
+          : "";
+  const demandTail =
+    unfulfilled > 0
+      ? ` · forecast +${unfulfilled} (unmet — drives What to Cook)`
+      : "";
   const events = emit(
     state.events,
     "inventory",
     command.method,
-    `${narratedLabel(command.method, command.narration)}${tail}`,
+    `${narratedLabel(command.method, command.narration)}${tail}${demandTail}`,
     methodConfidence(command.method),
   );
   return {
@@ -385,6 +460,82 @@ function applyServedCommand(
     whatToCook,
     events,
     overlay: buildOverlay(command, origin),
+  };
+}
+
+function applyFulfillOrder(
+  state: ProductionState,
+  orderId: string,
+  method: CaptureMethod,
+): ProductionState {
+  const order = state.incomingOrders.find((o) => o.id === orderId);
+  if (!order) return state;
+
+  const { held, sold } = sellManyUnits(
+    state.held,
+    order.menuItemId,
+    order.quantity,
+  );
+  const remaining = order.quantity - sold;
+
+  const incomingOrders =
+    remaining > 0
+      ? state.incomingOrders.map((o) =>
+          o.id === order.id ? { ...o, quantity: remaining } : o,
+        )
+      : state.incomingOrders.filter((o) => o.id !== order.id);
+
+  const soldDelta = sold > 0 ? { [order.menuItemId]: sold } : {};
+
+  let whatToCookBase = state.whatToCook;
+  if (sold === 0 && order.quantity > 0) {
+    whatToCookBase = state.whatToCook.map((item) =>
+      item.menuItemId === order.menuItemId
+        ? {
+            ...item,
+            forecastedDemand: item.forecastedDemand + order.quantity,
+          }
+        : item,
+    );
+  }
+
+  const whatToCook = recomputeWhatToCook(
+    whatToCookBase,
+    held,
+    state.cooking,
+    soldDelta,
+    null,
+  );
+
+  const mi = menuItem(order.menuItemId);
+  const tail =
+    sold === 0
+      ? " — nothing in hot hold (forecast raised)"
+      : sold < order.quantity
+        ? ` — partial (${sold}/${order.quantity} from hold)`
+        : ` — ${sold} ${mi.batchMeasurement} from hot hold`;
+
+  const events = emit(
+    state.events,
+    "inventory",
+    method,
+    `${narratedLabel(method, `Fulfilled incoming · ${order.quantity}× ${mi.name}`)}${tail}`,
+    methodConfidence(method),
+  );
+
+  return {
+    ...state,
+    held,
+    incomingOrders,
+    whatToCook,
+    events,
+    overlay: {
+      id: nextId("ov"),
+      narration: `Incoming order ${sold > 0 ? `fulfilled (${sold}× ${mi.name})` : "— no hold stock"}`,
+      method,
+      origin: "local",
+      at: Date.now(),
+    },
   };
 }
 
@@ -478,7 +629,8 @@ function reducer(state: ProductionState, action: Action): ProductionState {
       }
       held = held.filter((b) => !expiredIds.has(b.id));
 
-      // 3. POS simulation — sell one unit per menu item per sales interval.
+      // 3. POS simulation — sell one unit per menu item per sales interval (direct from hold;
+      //    only `/pos` queues into Incoming orders).
       const lastSaleAt = { ...state.lastSaleAt };
       const soldDelta: Record<string, number> = {};
       for (const mi of MENU_ITEMS) {
@@ -563,6 +715,10 @@ function reducer(state: ProductionState, action: Action): ProductionState {
       return { ...state, cooking, whatToCook, events };
     }
 
+    case "FULFILL_ORDER": {
+      return applyFulfillOrder(state, action.orderId, action.method);
+    }
+
     case "CONFIRM_DISPOSAL": {
       const entry = state.waste.find((w) => w.id === action.wasteId);
       if (!entry) return state;
@@ -589,8 +745,12 @@ function reducer(state: ProductionState, action: Action): ProductionState {
           return applyCookStartCommand(state, action.command, action.origin);
         case "hot-hold":
           return applyHotHoldCommand(state, action.command, action.origin);
-        case "served":
-          return applyServedCommand(state, action.command, action.origin);
+        case "served": {
+          const os = action.command.orderSource;
+          return os === "pos" || os === "remote"
+            ? applyEnqueueServedCommand(state, action.command, action.origin)
+            : applyDirectServedCommand(state, action.command, action.origin);
+        }
         case "disposal":
           return applyDisposalCommand(state, action.command, action.origin);
       }
@@ -609,6 +769,7 @@ const initialState: ProductionState = {
   whatToCook: INITIAL_WHAT_TO_COOK,
   cooking: INITIAL_COOKING,
   held: INITIAL_HELD,
+  incomingOrders: [],
   waste: INITIAL_WASTE,
   events: INITIAL_EVENTS,
   elapsed: 0,
@@ -623,6 +784,7 @@ export type ProductionContextValue = {
     quantity: number,
     captureMethod: CaptureMethod,
   ) => void;
+  fulfillOrder: (orderId: string, method: CaptureMethod) => void;
   confirmDisposal: (wasteId: string, method: CaptureMethod) => void;
   applyCommand: (command: RemoteCommand, origin?: CommandOrigin) => void;
 };
@@ -644,6 +806,10 @@ export function ProductionProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const fulfillOrder = useCallback((orderId: string, method: CaptureMethod) => {
+    dispatch({ type: "FULFILL_ORDER", orderId, method });
+  }, []);
+
   const confirmDisposal = useCallback(
     (wasteId: string, method: CaptureMethod) => {
       dispatch({ type: "CONFIRM_DISPOSAL", wasteId, method });
@@ -659,8 +825,8 @@ export function ProductionProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<ProductionContextValue>(
-    () => ({ state, startCooking, confirmDisposal, applyCommand }),
-    [state, startCooking, confirmDisposal, applyCommand],
+    () => ({ state, startCooking, fulfillOrder, confirmDisposal, applyCommand }),
+    [state, startCooking, fulfillOrder, confirmDisposal, applyCommand],
   );
 
   return createElement(ProductionContext.Provider, { value }, children);

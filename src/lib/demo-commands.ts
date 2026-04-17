@@ -39,6 +39,11 @@ export type ServedCommand = {
   quantity: number;
   method: CaptureMethod;
   narration: string;
+  /**
+   * `"pos"` (from `/pos`) or `"remote"` (from `/remote` serving panel) → production
+   * queues in Incoming orders. Omitted → apply `served` immediately from hot hold.
+   */
+  orderSource?: "pos" | "remote";
 };
 
 export type DisposalCommand = {
@@ -83,6 +88,7 @@ const servedSchema = z.object({
   quantity: z.number().int().positive().max(50),
   method: captureMethodSchema,
   narration: z.string().min(1).max(200),
+  orderSource: z.enum(["pos", "remote"]).optional(),
 });
 
 const disposalSchema = z.object({

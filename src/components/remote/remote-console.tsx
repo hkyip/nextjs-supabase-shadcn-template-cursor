@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import {
   Camera,
+  ClipboardList,
   Hand,
   Mic,
   Radio,
@@ -18,16 +19,27 @@ import {
   type DemoScriptKind,
   type RemoteCommand,
 } from "@/lib/demo-commands";
+import { MENU_ITEMS } from "@/lib/mock-data";
 import { statusLabel, useRemoteChannel } from "@/lib/realtime";
 import { speak } from "@/lib/speech";
 import { cn } from "@/lib/utils";
 
-type SentEntry = {
-  id: string;
-  script: DemoScript;
-  at: number;
-  ok: boolean;
-};
+type SentEntry =
+  | {
+      id: string;
+      variant: "script";
+      script: DemoScript;
+      at: number;
+      ok: boolean;
+    }
+  | {
+      id: string;
+      variant: "serving";
+      title: string;
+      detail: string;
+      at: number;
+      ok: boolean;
+    };
 
 const KIND_META: Record<
   DemoScriptKind,
@@ -98,7 +110,39 @@ export function RemoteConsole({ room }: Props) {
         [
           {
             id: `${script.id}-${Date.now()}`,
+            variant: "script",
             script,
+            at: Date.now(),
+            ok,
+          },
+          ...prev,
+        ].slice(0, 12),
+      );
+    },
+    [publish],
+  );
+
+  const dispatchServingOrder = useCallback(
+    async (menuItemId: string, name: string) => {
+      const key = `serve:${menuItemId}`;
+      setPendingId(key);
+      const command: RemoteCommand = {
+        type: "served",
+        menuItemId,
+        quantity: 1,
+        method: "manual",
+        narration: `Remote serving order — 1× ${name}`,
+        orderSource: "remote",
+      };
+      const ok = await publish(command);
+      setPendingId(null);
+      setSent((prev) =>
+        [
+          {
+            id: `${key}-${Date.now()}`,
+            variant: "serving",
+            title: "Serving order",
+            detail: `1× ${name} → Incoming on production`,
             at: Date.now(),
             ok,
           },
@@ -147,6 +191,37 @@ export function RemoteConsole({ room }: Props) {
       </header>
 
       <main className="flex-1 space-y-4">
+        <section className="rounded-lg border bg-card p-3 shadow-sm">
+          <h2 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            <ClipboardList className="size-3.5" />
+            Serving orders
+          </h2>
+          <p className="mb-3 text-[11px] text-muted-foreground">
+            Ring one item at a time — queues on production{" "}
+            <span className="font-mono">Incoming orders</span> (same as{" "}
+            <span className="font-mono">/pos</span>). The line fulfills with Camera /
+            Voice / Manual.
+          </p>
+          <div className="grid gap-2">
+            {MENU_ITEMS.map((mi) => (
+              <Button
+                key={mi.id}
+                variant="outline"
+                className="h-auto min-h-[48px] justify-start border border-sky-400/40 bg-sky-500/10 text-left text-sm hover:bg-sky-500/20 dark:text-sky-100"
+                disabled={disabled || pendingId === `serve:${mi.id}`}
+                onClick={() => void dispatchServingOrder(mi.id, mi.name)}
+              >
+                <div className="flex w-full flex-col gap-0.5">
+                  <span className="font-medium">+ 1× {mi.name}</span>
+                  <span className="text-[11px] font-normal opacity-80">
+                    served (remote queue) · {mi.id}
+                  </span>
+                </div>
+              </Button>
+            ))}
+          </div>
+        </section>
+
         {(Object.keys(groups) as DemoScriptKind[]).map((kind) => {
           const meta = KIND_META[kind];
           const scripts = groups[kind];
@@ -199,6 +274,33 @@ export function RemoteConsole({ room }: Props) {
           ) : (
             <ul className="space-y-1 text-xs">
               {sent.map((entry) => {
+                if (entry.variant === "serving") {
+                  return (
+                    <li
+                      key={entry.id}
+                      className="flex items-start gap-2 rounded border bg-background/60 p-2"
+                    >
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-sky-500/15">
+                        <ClipboardList className="size-3 text-sky-700 dark:text-sky-300" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{entry.title}</span>
+                        <span className="block truncate text-[10px] text-muted-foreground">
+                          {entry.detail}
+                        </span>
+                      </span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">
+                        {formatTime(entry.at)}
+                      </span>
+                      <Badge
+                        variant={entry.ok ? "secondary" : "destructive"}
+                        className="h-4 shrink-0 text-[10px]"
+                      >
+                        {entry.ok ? "sent" : "failed"}
+                      </Badge>
+                    </li>
+                  );
+                }
                 const meta = KIND_META[entry.script.kind];
                 return (
                   <li
@@ -271,6 +373,12 @@ function commandSummary(command: RemoteCommand): string {
     case "hot-hold":
       return `hot-hold · ${command.menuItemId} × ${command.quantity}`;
     case "served":
+      if (command.orderSource === "pos") {
+        return `served (POS queue) · ${command.menuItemId} × ${command.quantity}`;
+      }
+      if (command.orderSource === "remote") {
+        return `served (remote queue) · ${command.menuItemId} × ${command.quantity}`;
+      }
       return `served · ${command.menuItemId} × ${command.quantity}`;
     case "disposal":
       return command.menuItemId

@@ -14,19 +14,22 @@ const URGENCY_STYLES = {
     border: "border-border",
     bg: "",
     label: "On Track",
-    badgeClass: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30",
+    badgeClass:
+      "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30",
   },
   soon: {
     border: "border-yellow-500/50",
     bg: "bg-yellow-500/5",
     label: "Cook Soon",
-    badgeClass: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/30",
+    badgeClass:
+      "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/30",
   },
   urgent: {
     border: "border-red-500/50",
     bg: "bg-red-500/5",
     label: "Cook Now",
-    badgeClass: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/30",
+    badgeClass:
+      "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/30",
   },
 } as const;
 
@@ -42,13 +45,15 @@ type Props = {
 export function WhatToCookColumn({ items, onStartCooking }: Props) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="sticky top-0 z-20 -mx-1 flex items-center justify-between border-b bg-background px-1 py-2">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-          What to Cook
-        </h2>
-        <Badge variant="secondary" className="text-xs tabular-nums">
-          {items.filter((i) => i.cookQuantity > 0).length} items
-        </Badge>
+      <div className="bg-background sticky top-0 z-20 -mx-1 space-y-1 border-b px-1 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-muted-foreground text-sm font-bold tracking-wider uppercase">
+            What to Cook
+          </h2>
+          <Badge variant="secondary" className="shrink-0 text-xs tabular-nums">
+            {items.filter((i) => i.cookQuantity > 0).length} items
+          </Badge>
+        </div>
       </div>
 
       {items.map((item) => {
@@ -64,48 +69,51 @@ export function WhatToCookColumn({ items, onStartCooking }: Props) {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-base font-bold lg:text-lg">{mi.name}</p>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider tabular-nums text-muted-foreground">
+                  <p className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase tabular-nums">
                     Cook time · {Math.round(mi.cookTimeSeconds / 60)} min
                   </p>
                 </div>
-                <Badge variant="outline" className={cn("text-xs", style.badgeClass)}>
+                <Badge
+                  variant="outline"
+                  className={cn("text-xs", style.badgeClass)}
+                >
                   {style.label}
                 </Badge>
               </div>
 
               <div className="text-center">
-                <p className="text-6xl font-black leading-none tracking-tight tabular-nums lg:text-7xl">
+                <p className="text-6xl leading-none font-black tracking-tight tabular-nums lg:text-7xl">
                   {item.cookQuantity}
                 </p>
-                <p className="mt-2 text-xs uppercase tracking-wider text-muted-foreground">
+                <p className="text-muted-foreground mt-2 text-xs tracking-wider uppercase">
                   {mi.batchMeasurement} · {item.batchCount}{" "}
                   {item.batchCount === 1 ? "batch" : "batches"}
                 </p>
               </div>
 
-              <div className="grid grid-cols-4 gap-1 rounded-md border bg-background/60 p-2 text-center text-[11px] leading-tight">
+              <div className="bg-background/60 grid grid-cols-4 gap-1 rounded-md border p-2 text-center text-[11px] leading-tight">
                 <div>
                   <div className="font-semibold tabular-nums">
                     {item.forecastedDemand}
                   </div>
-                  <div className="text-[10px] text-muted-foreground">
+                  <div className="text-muted-foreground text-[10px]">
                     Forecast
                   </div>
                 </div>
                 <div className="text-muted-foreground">
-                  <div className="font-semibold tabular-nums text-foreground">
+                  <div className="text-foreground font-semibold tabular-nums">
                     −{item.currentHoldInventory}
                   </div>
                   <div className="text-[10px]">Hold</div>
                 </div>
                 <div className="text-muted-foreground">
-                  <div className="font-semibold tabular-nums text-foreground">
+                  <div className="text-foreground font-semibold tabular-nums">
                     −{item.currentlyCooking}
                   </div>
                   <div className="text-[10px]">Cooking</div>
                 </div>
                 <div className="text-muted-foreground">
-                  <div className="font-semibold tabular-nums text-foreground">
+                  <div className="text-foreground font-semibold tabular-nums">
                     {item.soldSinceLastCook}
                   </div>
                   <div className="text-[10px]">Sold</div>

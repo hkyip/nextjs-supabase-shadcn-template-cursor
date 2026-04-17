@@ -1,20 +1,10 @@
-import { Info } from "lucide-react";
-
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { ProductionBoard } from "@/components/production/production-board";
 import { LiveClock } from "@/components/station/live-clock";
 
 export const metadata = {
   title: "Production Screen — Forkcast",
 };
-
-const DEMO_CHOICES = [
-  "Single-tablet layout (all four columns on one screen)",
-  "Alerts: visual-only, manual dismiss, stacked in arrival order",
-  "Camera fallback: auto-promote on timer completion; manual button fallback everywhere",
-  "Remote commands broadcast over Supabase Realtime; production tablet is read/write, /remote is write-only",
-] as const;
 
 type Props = {
   searchParams: Promise<{ room?: string | string[] }>;
