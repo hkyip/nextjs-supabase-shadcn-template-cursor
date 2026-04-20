@@ -78,6 +78,32 @@ export const MENU_ITEMS: MenuItem[] = [
   },
 ];
 
+/**
+ * Shrinks statistical forecast units on `/forecast` and "Next 30m" in production so
+ * values are easy to eyeball (e.g. tens instead of hundreds). Does not affect
+ * `salesIntervalSeconds` or the POS simulation tick.
+ */
+export const FORECAST_DEMO_UNIT_SCALE = 0.1;
+
+/**
+ * Intraday demand shape (24 entries, local hour 0–23) for statistical forecast only.
+ * Scaled in forecast.ts so long-run average rate matches salesIntervalSeconds.
+ */
+export const FORECAST_HOURLY_WEIGHT: Record<string, readonly number[]> = {
+  "original-chicken": [
+    0.05, 0.05, 0.05, 0.05, 0.08, 0.12, 0.35, 0.55, 0.75, 0.9, 1.0, 1.15, 1.25, 1.1,
+    0.85, 0.7, 0.65, 0.95, 1.2, 1.05, 0.8, 0.45, 0.2, 0.1,
+  ],
+  "french-fries": [
+    0.08, 0.06, 0.05, 0.05, 0.1, 0.18, 0.45, 0.7, 0.85, 0.95, 1.0, 1.2, 1.35, 1.15,
+    0.9, 0.75, 0.85, 1.1, 1.25, 1.0, 0.75, 0.4, 0.2, 0.12,
+  ],
+  "apple-pie": [
+    0.02, 0.02, 0.02, 0.02, 0.05, 0.1, 0.25, 0.4, 0.55, 0.65, 0.75, 0.85, 0.9, 0.8,
+    0.65, 0.55, 0.5, 0.7, 0.85, 0.75, 0.5, 0.3, 0.15, 0.08,
+  ],
+} as const;
+
 // ---------------------------------------------------------------------------
 // Capture methods for cook-start / disposal documentation
 // ---------------------------------------------------------------------------
@@ -93,7 +119,12 @@ export type WhatToCookItem = {
   cookQuantity: number;
   batchCount: number;
   urgency: "normal" | "soon" | "urgent";
+  /** Expected units in the next 30 minutes from the time-based forecast (not sales-driven). */
   forecastedDemand: number;
+  /** POS / remote tickets still waiting (units). */
+  queuedUnits: number;
+  /** Lane / direct-serve shortfall not covered by hot hold (units). */
+  laneBacklogUnits: number;
   currentHoldInventory: number;
   currentlyCooking: number;
   soldSinceLastCook: number;
@@ -175,6 +206,8 @@ export const INITIAL_WHAT_TO_COOK: WhatToCookItem[] = [
     batchCount: 2,
     urgency: "urgent",
     forecastedDemand: 32,
+    queuedUnits: 0,
+    laneBacklogUnits: 0,
     currentHoldInventory: 6,
     currentlyCooking: 8,
     soldSinceLastCook: 4,
@@ -185,6 +218,8 @@ export const INITIAL_WHAT_TO_COOK: WhatToCookItem[] = [
     batchCount: 2,
     urgency: "soon",
     forecastedDemand: 24,
+    queuedUnits: 0,
+    laneBacklogUnits: 0,
     currentHoldInventory: 6,
     currentlyCooking: 6,
     soldSinceLastCook: 2,
@@ -195,6 +230,8 @@ export const INITIAL_WHAT_TO_COOK: WhatToCookItem[] = [
     batchCount: 1,
     urgency: "normal",
     forecastedDemand: 8,
+    queuedUnits: 0,
+    laneBacklogUnits: 0,
     currentHoldInventory: 3,
     currentlyCooking: 0,
     soldSinceLastCook: 1,

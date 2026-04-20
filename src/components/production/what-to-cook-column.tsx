@@ -91,14 +91,26 @@ export function WhatToCookColumn({ items, onStartCooking }: Props) {
                 </p>
               </div>
 
-              <div className="bg-background/60 grid grid-cols-4 gap-1 rounded-md border p-2 text-center text-[11px] leading-tight">
+              <div className="bg-background/60 grid grid-cols-3 gap-1 rounded-md border p-2 text-center text-[11px] leading-tight sm:grid-cols-6">
                 <div>
                   <div className="font-semibold tabular-nums">
-                    {item.forecastedDemand}
+                    {Math.round(item.forecastedDemand)}
                   </div>
                   <div className="text-muted-foreground text-[10px]">
-                    Forecast
+                    Next 30m
                   </div>
+                </div>
+                <div className="text-muted-foreground">
+                  <div className="text-foreground font-semibold tabular-nums">
+                    {item.queuedUnits}
+                  </div>
+                  <div className="text-[10px]">Queue</div>
+                </div>
+                <div className="text-muted-foreground">
+                  <div className="text-foreground font-semibold tabular-nums">
+                    {item.laneBacklogUnits}
+                  </div>
+                  <div className="text-[10px]">Lane</div>
                 </div>
                 <div className="text-muted-foreground">
                   <div className="text-foreground font-semibold tabular-nums">
@@ -119,6 +131,12 @@ export function WhatToCookColumn({ items, onStartCooking }: Props) {
                   <div className="text-[10px]">Sold</div>
                 </div>
               </div>
+              {(item.queuedUnits > 0 || item.laneBacklogUnits > 0) && (
+                <p className="text-muted-foreground text-center text-[10px] leading-tight">
+                  Cook target includes queue and lane backlog (not the statistical
+                  forecast).
+                </p>
+              )}
 
               {item.cookQuantity > 0 && (
                 <div className="flex gap-2">

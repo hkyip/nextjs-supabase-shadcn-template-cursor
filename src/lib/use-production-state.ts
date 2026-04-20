@@ -23,6 +23,10 @@ import type {
   WhatToCookItem,
 } from "@/lib/mock-data";
 import {
+  FORECAST_DEFAULT_WINDOW_MINUTES,
+  forecastUnitsInWindow,
+} from "@/lib/forecast";
+import {
   INITIAL_COOKING,
   INITIAL_EVENTS,
   INITIAL_HELD,
@@ -61,6 +65,11 @@ export type ProductionState = {
   held: HeldBatch[];
   /** Orders waiting to be pulled from hot hold (camera / voice / manual). */
   incomingOrders: IncomingOrder[];
+  /**
+   * Lane / direct-serve shortfall (units) not covered by hot hold — does not change the
+   * statistical forecast; decremented when product is pulled from hold on the lane.
+   */
+  laneBacklog: Record<string, number>;
   waste: WasteEntry[];
   events: DetectionEvent[];
   elapsed: number;
@@ -167,19 +176,23 @@ function buildOverlay(
 }
 
 /**
- * Cook Quantity = max(0, forecastedDemand - currentHoldInventory - currentlyCooking).
- * We intentionally omit "sold since last cook" from the formula itself (it's already baked
- * into the live hold inventory); the field is exposed on the tile for transparency.
- * Incoming POS orders queue separately until fulfilled from hot hold.
+ * Cook quantity = max(0, next-window forecast − hold − cooking + queued POS + lane backlog).
+ * Forecast is time-based only; sold units flow through hold inventory.
  */
 function computeCookQuantity(
   item: WhatToCookItem,
   batchSize: number,
 ): WhatToCookItem {
-  const cookQuantity = Math.max(
+  const opsOverlay = item.queuedUnits + item.laneBacklogUnits;
+  const rawCook = Math.max(
     0,
-    item.forecastedDemand - item.currentHoldInventory - item.currentlyCooking,
+    item.forecastedDemand -
+      item.currentHoldInventory -
+      item.currentlyCooking +
+      opsOverlay,
   );
+  /** Whole units for the line — forecast integration can be fractional. */
+  const cookQuantity = Math.round(rawCook);
   const batchCount = Math.ceil(cookQuantity / batchSize);
   let urgency: WhatToCookItem["urgency"];
   if (cookQuantity === 0) urgency = "normal";
@@ -243,20 +256,40 @@ function sellManyUnits(
   return { held: current, sold };
 }
 
+function queuedUnitsForItem(
+  incomingOrders: IncomingOrder[],
+  menuItemId: string,
+): number {
+  return incomingOrders
+    .filter((o) => o.menuItemId === menuItemId)
+    .reduce((s, o) => s + o.quantity, 0);
+}
+
 function recomputeWhatToCook(
   whatToCook: WhatToCookItem[],
   held: HeldBatch[],
   cooking: CookingBatch[],
+  incomingOrders: IncomingOrder[],
+  laneBacklog: Record<string, number>,
   soldDelta: Record<string, number>,
   resetSoldFor: string | null,
+  now: Date,
 ): WhatToCookItem[] {
   return whatToCook.map((item) => {
     const mi = menuItem(item.menuItemId);
     const deltaSold = soldDelta[item.menuItemId] ?? 0;
     const baseSold =
       resetSoldFor === item.menuItemId ? 0 : item.soldSinceLastCook;
+    const forecastedDemand = forecastUnitsInWindow(
+      item.menuItemId,
+      now,
+      FORECAST_DEFAULT_WINDOW_MINUTES,
+    );
     const merged: WhatToCookItem = {
       ...item,
+      forecastedDemand,
+      queuedUnits: queuedUnitsForItem(incomingOrders, item.menuItemId),
+      laneBacklogUnits: laneBacklog[item.menuItemId] ?? 0,
       currentHoldInventory: totalHeldForItem(held, item.menuItemId),
       currentlyCooking: totalCookingForItem(cooking, item.menuItemId),
       soldSinceLastCook: baseSold + deltaSold,
@@ -288,8 +321,11 @@ function applyCookStartCommand(
     state.whatToCook,
     state.held,
     cooking,
+    state.incomingOrders,
+    state.laneBacklog,
     {},
     command.menuItemId,
+    new Date(),
   );
   const events = emit(
     state.events,
@@ -352,8 +388,11 @@ function applyHotHoldCommand(
     state.whatToCook,
     held,
     cooking,
+    state.incomingOrders,
+    state.laneBacklog,
     {},
     null,
+    new Date(),
   );
   const events = emit(
     state.events,
@@ -417,25 +456,25 @@ function applyDirectServedCommand(
     command.quantity,
   );
   const unfulfilled = command.quantity - sold;
-  const whatToCookBase =
-    unfulfilled > 0
-      ? state.whatToCook.map((item) =>
-          item.menuItemId === command.menuItemId
-            ? {
-                ...item,
-                forecastedDemand: item.forecastedDemand + unfulfilled,
-              }
-            : item,
-        )
-      : state.whatToCook;
+  const laneBacklog = { ...state.laneBacklog };
+  const lbKey = command.menuItemId;
+  if (unfulfilled > 0) {
+    laneBacklog[lbKey] = (laneBacklog[lbKey] ?? 0) + unfulfilled;
+  }
+  if (sold > 0) {
+    laneBacklog[lbKey] = Math.max(0, (laneBacklog[lbKey] ?? 0) - sold);
+  }
 
   const soldDelta = sold > 0 ? { [command.menuItemId]: sold } : {};
   const whatToCook = recomputeWhatToCook(
-    whatToCookBase,
+    state.whatToCook,
     held,
     state.cooking,
+    state.incomingOrders,
+    laneBacklog,
     soldDelta,
     null,
+    new Date(),
   );
   const tail =
     sold === 0 && command.quantity > 0
@@ -447,7 +486,7 @@ function applyDirectServedCommand(
           : "";
   const demandTail =
     unfulfilled > 0
-      ? ` · forecast +${unfulfilled} (unmet — drives What to Cook)`
+      ? ` · lane backlog +${unfulfilled} (unmet — drives What to Cook)`
       : "";
   const events = emit(
     state.events,
@@ -459,6 +498,7 @@ function applyDirectServedCommand(
   return {
     ...state,
     held,
+    laneBacklog,
     whatToCook,
     events,
     overlay: buildOverlay(command, origin),
@@ -489,30 +529,21 @@ function applyFulfillOrder(
 
   const soldDelta = sold > 0 ? { [order.menuItemId]: sold } : {};
 
-  let whatToCookBase = state.whatToCook;
-  if (sold === 0 && order.quantity > 0) {
-    whatToCookBase = state.whatToCook.map((item) =>
-      item.menuItemId === order.menuItemId
-        ? {
-            ...item,
-            forecastedDemand: item.forecastedDemand + order.quantity,
-          }
-        : item,
-    );
-  }
-
   const whatToCook = recomputeWhatToCook(
-    whatToCookBase,
+    state.whatToCook,
     held,
     state.cooking,
+    incomingOrders,
+    state.laneBacklog,
     soldDelta,
     null,
+    new Date(),
   );
 
   const mi = menuItem(order.menuItemId);
   const tail =
     sold === 0
-      ? " — nothing in hot hold (forecast raised)"
+      ? " — nothing in hot hold (ticket waits)"
       : sold < order.quantity
         ? ` — partial (${sold}/${order.quantity} from hold)`
         : ` — ${sold} ${mi.batchMeasurement} from hot hold`;
@@ -651,8 +682,11 @@ function reducer(state: ProductionState, action: Action): ProductionState {
         state.whatToCook,
         held,
         cooking,
+        state.incomingOrders,
+        state.laneBacklog,
         soldDelta,
         null,
+        new Date(),
       );
 
       // 5. Occasional inventory-detection ping for the camera feed.
@@ -696,8 +730,11 @@ function reducer(state: ProductionState, action: Action): ProductionState {
         state.whatToCook,
         state.held,
         cooking,
+        state.incomingOrders,
+        state.laneBacklog,
         {},
         action.menuItemId,
+        new Date(),
       );
 
       const captureLabel =
@@ -777,16 +814,30 @@ function createInitialProductionState(): ProductionState {
       targetReadyAtMs: now + (mi.cookTimeSeconds - b.startedAtSeconds) * 1000,
     };
   });
-  return {
+  const base: ProductionState = {
     whatToCook: INITIAL_WHAT_TO_COOK,
     cooking,
     held: INITIAL_HELD,
     incomingOrders: [],
+    laneBacklog: {},
     waste: INITIAL_WASTE,
     events: INITIAL_EVENTS,
     elapsed: 0,
     lastSaleAt: {},
     overlay: null,
+  };
+  return {
+    ...base,
+    whatToCook: recomputeWhatToCook(
+      base.whatToCook,
+      base.held,
+      base.cooking,
+      base.incomingOrders,
+      base.laneBacklog,
+      {},
+      null,
+      new Date(),
+    ),
   };
 }
 

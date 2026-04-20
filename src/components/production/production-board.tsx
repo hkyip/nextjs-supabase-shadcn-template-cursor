@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Maximize2, Minimize2 } from "lucide-react";
+import Link from "next/link";
+import { LineChart, Maximize2, Minimize2 } from "lucide-react";
 
 import { AlertBanner } from "@/components/production/alert-banner";
 import { CommandOverlay } from "@/components/production/command-overlay";
@@ -20,7 +21,8 @@ type Props = {
 };
 
 export function ProductionBoard({ room }: Props) {
-  const { state, startCooking, confirmDisposal, applyCommand } = useProduction();
+  const { state, startCooking, confirmDisposal, applyCommand } =
+    useProduction();
   const [fullscreen, setFullscreen] = useState(false);
 
   const handleRemoteCommand = useCallback(
