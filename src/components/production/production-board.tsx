@@ -4,11 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Maximize2, Minimize2 } from "lucide-react";
 
 import { AlertBanner } from "@/components/production/alert-banner";
-import { CommandDeck } from "@/components/production/command-deck";
 import { CommandOverlay } from "@/components/production/command-overlay";
 import { CookingColumn } from "@/components/production/cooking-column";
 import { HeldColumn } from "@/components/production/held-column";
-import { IncomingOrdersColumn } from "@/components/production/incoming-orders-column";
 import { WasteColumn } from "@/components/production/waste-column";
 import { WhatToCookColumn } from "@/components/production/what-to-cook-column";
 import { Button } from "@/components/ui/button";
@@ -22,8 +20,7 @@ type Props = {
 };
 
 export function ProductionBoard({ room }: Props) {
-  const { state, startCooking, fulfillOrder, confirmDisposal, applyCommand } =
-    useProduction();
+  const { state, startCooking, confirmDisposal, applyCommand } = useProduction();
   const [fullscreen, setFullscreen] = useState(false);
 
   const handleRemoteCommand = useCallback(
@@ -95,7 +92,7 @@ export function ProductionBoard({ room }: Props) {
 
       <AlertBanner />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className={columnScroll}>
           <WhatToCookColumn
             items={state.whatToCook}
@@ -104,12 +101,6 @@ export function ProductionBoard({ room }: Props) {
         </div>
         <div className={columnScroll}>
           <CookingColumn batches={state.cooking} />
-        </div>
-        <div className={columnScroll}>
-          <IncomingOrdersColumn
-            orders={state.incomingOrders}
-            onFulfill={fulfillOrder}
-          />
         </div>
         <div className={columnScroll}>
           <HeldColumn batches={state.held} />
