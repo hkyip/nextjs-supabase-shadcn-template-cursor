@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { LineChart, Maximize2, Minimize2 } from "lucide-react";
+import { Maximize2, Minimize2 } from "lucide-react";
 
-import { AlertBanner } from "@/components/production/alert-banner";
+import {
+  AlertBanner,
+  type ShownAlertInstance,
+} from "@/components/production/alert-banner";
 import { CommandOverlay } from "@/components/production/command-overlay";
 import { CookingColumn } from "@/components/production/cooking-column";
 import { HeldColumn } from "@/components/production/held-column";
@@ -12,6 +14,7 @@ import { WasteColumn } from "@/components/production/waste-column";
 import { WhatToCookColumn } from "@/components/production/what-to-cook-column";
 import { Button } from "@/components/ui/button";
 import type { RemoteCommand } from "@/lib/demo-commands";
+import { DEMO_ALERTS } from "@/lib/mock-data";
 import { useRemoteChannel } from "@/lib/realtime";
 import { useProduction } from "@/lib/use-production-state";
 import { cn } from "@/lib/utils";
@@ -21,20 +24,27 @@ type Props = {
 };
 
 export function ProductionBoard({ room }: Props) {
-  const { state, startCooking, confirmDisposal, applyCommand } =
-    useProduction();
+  const { state, startCooking, confirmDisposal } = useProduction();
   const [fullscreen, setFullscreen] = useState(false);
+  const [alertInstances, setAlertInstances] = useState<ShownAlertInstance[]>([]);
 
-  const handleRemoteCommand = useCallback(
-    (command: RemoteCommand) => {
-      applyCommand(command, "remote");
-    },
-    [applyCommand],
-  );
+  const dismissAlertInstance = useCallback((instanceKey: number) => {
+    setAlertInstances((prev) => prev.filter((i) => i.instanceKey !== instanceKey));
+  }, []);
 
-  // Subscribe to remote commands for this room. Returned publish is unused here —
-  // the production screen only receives commands; the /remote controller publishes them.
-  useRemoteChannel({ room, onCommand: handleRemoteCommand });
+  /** Banner UI only — state is updated by {@link ProductionRemoteBridge} in the demo layout. */
+  const handleRemoteAlertUi = useCallback((command: RemoteCommand) => {
+    if (command.type !== "dynamic-alert") return;
+    const def = DEMO_ALERTS.find((a) => a.id === command.alertId);
+    if (def) {
+      setAlertInstances((prev) => [
+        ...prev,
+        { instanceKey: Date.now(), alert: def },
+      ]);
+    }
+  }, []);
+
+  useRemoteChannel({ room, onCommand: handleRemoteAlertUi });
 
   // Keep local state in sync with the browser Fullscreen API (Esc key, OS chrome, etc.)
   useEffect(() => {
@@ -92,7 +102,10 @@ export function ProductionBoard({ room }: Props) {
         )}
       </Button>
 
-      <AlertBanner />
+      <AlertBanner
+        instances={alertInstances}
+        onDismissInstance={dismissAlertInstance}
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className={columnScroll}>

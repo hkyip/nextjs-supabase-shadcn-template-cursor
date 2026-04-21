@@ -12,7 +12,6 @@ import {
 
 import { Button } from "@/components/ui/button";
 import type { DynamicAlert } from "@/lib/mock-data";
-import { DEMO_ALERTS } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
 const ALERT_ICON = {
@@ -74,34 +73,27 @@ function playChime() {
   }
 }
 
-export function AlertBanner() {
-  const [visibleAlerts, setVisibleAlerts] = useState<DynamicAlert[]>([]);
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+export type ShownAlertInstance = {
+  instanceKey: number;
+  alert: DynamicAlert;
+};
+
+type Props = {
+  /** Instances queued from `/remote` (parent appends in the Realtime handler). */
+  instances: ShownAlertInstance[];
+  onDismissInstance: (instanceKey: number) => void;
+};
+
+export function AlertBanner({ instances, onDismissInstance }: Props) {
   const [soundOn, setSoundOn] = useState(false);
-  const soundOnRef = useRef(soundOn);
+  const prevCountRef = useRef(instances.length);
 
   useEffect(() => {
-    soundOnRef.current = soundOn;
-  }, [soundOn]);
+    if (instances.length > prevCountRef.current && soundOn) playChime();
+    prevCountRef.current = instances.length;
+  }, [instances.length, soundOn]);
 
-  useEffect(() => {
-    const timers: ReturnType<typeof setTimeout>[] = [];
-
-    for (const alert of DEMO_ALERTS) {
-      const timer = setTimeout(() => {
-        setVisibleAlerts((prev) => {
-          if (prev.some((a) => a.id === alert.id)) return prev;
-          if (soundOnRef.current) playChime();
-          return [...prev, alert];
-        });
-      }, alert.delayMs);
-      timers.push(timer);
-    }
-
-    return () => timers.forEach(clearTimeout);
-  }, []);
-
-  const activeAlerts = visibleAlerts.filter((a) => !dismissed.has(a.id));
+  const activeAlerts = instances;
 
   return (
     <div className="space-y-2">
@@ -127,13 +119,13 @@ export function AlertBanner() {
         </Button>
       </div>
 
-      {activeAlerts.map((alert) => {
+      {activeAlerts.map(({ instanceKey, alert }) => {
         const style = ALERT_STYLE[alert.type];
         const Icon = ALERT_ICON[alert.icon as keyof typeof ALERT_ICON];
 
         return (
           <div
-            key={alert.id}
+            key={instanceKey}
             role="alert"
             className={cn(
               "relative rounded-lg border-2 p-4 animate-in fade-in slide-in-from-top-2 duration-300",
@@ -145,9 +137,7 @@ export function AlertBanner() {
               variant="ghost"
               size="sm"
               className="absolute right-2 top-2 size-7 p-0"
-              onClick={() =>
-                setDismissed((prev) => new Set([...prev, alert.id]))
-              }
+              onClick={() => onDismissInstance(instanceKey)}
               aria-label="Dismiss alert"
             >
               <X className="size-4" />

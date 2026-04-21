@@ -1,6 +1,8 @@
 import { z } from "zod";
 
+import type { DemoTimeScale } from "@/lib/demo-clock";
 import type { CaptureMethod } from "@/lib/mock-data";
+import { DEMO_ALERTS } from "@/lib/mock-data";
 
 // ---------------------------------------------------------------------------
 // Remote command model
@@ -14,7 +16,11 @@ export type RemoteCommandType =
   | "cook-start"
   | "hot-hold"
   | "served"
-  | "disposal";
+  | "disposal"
+  | "dynamic-alert"
+  | "set-demo-time"
+  | "set-demo-time-scale"
+  | "set-demo-now";
 
 export type CookStartCommand = {
   type: "cook-start";
@@ -54,11 +60,47 @@ export type DisposalCommand = {
   narration: string;
 };
 
+/** Push a forecast / ops coaching banner on the production screen (from `/remote` only in UI). */
+export type DynamicAlertCommand = {
+  type: "dynamic-alert";
+  alertId: (typeof DEMO_ALERTS)[number]["id"];
+  method: CaptureMethod;
+  narration: string;
+};
+
+/** Jump the demo store clock to a local time-of-day (store TZ) for rehearsals. */
+export type SetDemoTimeCommand = {
+  type: "set-demo-time";
+  hour: number;
+  minute: number;
+  method: CaptureMethod;
+  narration: string;
+};
+
+/** Set accelerated timeline vs wall clock (`1` or `10`). */
+export type SetDemoTimeScaleCommand = {
+  type: "set-demo-time-scale";
+  timeScale: DemoTimeScale;
+  method: CaptureMethod;
+  narration: string;
+};
+
+/** Snap demo clock to real wall “now” (same UTC instant as this device), keep time scale. */
+export type SetDemoNowCommand = {
+  type: "set-demo-now";
+  method: CaptureMethod;
+  narration: string;
+};
+
 export type RemoteCommand =
   | CookStartCommand
   | HotHoldCommand
   | ServedCommand
-  | DisposalCommand;
+  | DisposalCommand
+  | DynamicAlertCommand
+  | SetDemoTimeCommand
+  | SetDemoTimeScaleCommand
+  | SetDemoNowCommand;
 
 const captureMethodSchema: z.ZodType<CaptureMethod> = z.enum([
   "camera",
@@ -98,12 +140,50 @@ const disposalSchema = z.object({
   narration: z.string().min(1).max(200),
 });
 
+const dynamicAlertIdSchema = z.enum(
+  DEMO_ALERTS.map((a) => a.id) as [string, string, ...string[]],
+);
+
+const dynamicAlertSchema = z.object({
+  type: z.literal("dynamic-alert"),
+  alertId: dynamicAlertIdSchema,
+  method: captureMethodSchema,
+  narration: z.string().min(1).max(200),
+});
+
+const setDemoTimeSchema = z.object({
+  type: z.literal("set-demo-time"),
+  hour: z.number().int().min(0).max(23),
+  minute: z.number().int().min(0).max(59),
+  method: captureMethodSchema,
+  narration: z.string().min(1).max(200),
+});
+
+const demoTimeScaleSchema = z.union([z.literal(1), z.literal(10)]);
+
+const setDemoTimeScaleSchema = z.object({
+  type: z.literal("set-demo-time-scale"),
+  timeScale: demoTimeScaleSchema,
+  method: captureMethodSchema,
+  narration: z.string().min(1).max(200),
+});
+
+const setDemoNowSchema = z.object({
+  type: z.literal("set-demo-now"),
+  method: captureMethodSchema,
+  narration: z.string().min(1).max(200),
+});
+
 export const remoteCommandSchema: z.ZodType<RemoteCommand> =
   z.discriminatedUnion("type", [
     cookStartSchema,
     hotHoldSchema,
     servedSchema,
     disposalSchema,
+    dynamicAlertSchema,
+    setDemoTimeSchema,
+    setDemoTimeScaleSchema,
+    setDemoNowSchema,
   ]);
 
 export function parseRemoteCommand(payload: unknown): RemoteCommand | null {

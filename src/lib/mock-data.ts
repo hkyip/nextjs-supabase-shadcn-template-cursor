@@ -121,6 +121,11 @@ export type WhatToCookItem = {
   urgency: "normal" | "soon" | "urgent";
   /** Expected units in the next 30 minutes from the time-based forecast (not sales-driven). */
   forecastedDemand: number;
+  /** Baseline × velocity × event × operator — feeds cook target before queue/lane. */
+  adjustedExpectedDemand: number;
+  velocityFactor: number;
+  eventFactor: number;
+  operatorFactor: number;
   /** POS / remote tickets still waiting (units). */
   queuedUnits: number;
   /** Lane / direct-serve shortfall not covered by hot hold (units). */
@@ -206,6 +211,10 @@ export const INITIAL_WHAT_TO_COOK: WhatToCookItem[] = [
     batchCount: 2,
     urgency: "urgent",
     forecastedDemand: 32,
+    adjustedExpectedDemand: 32,
+    velocityFactor: 1,
+    eventFactor: 1,
+    operatorFactor: 1,
     queuedUnits: 0,
     laneBacklogUnits: 0,
     currentHoldInventory: 6,
@@ -218,6 +227,10 @@ export const INITIAL_WHAT_TO_COOK: WhatToCookItem[] = [
     batchCount: 2,
     urgency: "soon",
     forecastedDemand: 24,
+    adjustedExpectedDemand: 24,
+    velocityFactor: 1,
+    eventFactor: 1,
+    operatorFactor: 1,
     queuedUnits: 0,
     laneBacklogUnits: 0,
     currentHoldInventory: 6,
@@ -230,6 +243,10 @@ export const INITIAL_WHAT_TO_COOK: WhatToCookItem[] = [
     batchCount: 1,
     urgency: "normal",
     forecastedDemand: 8,
+    adjustedExpectedDemand: 8,
+    velocityFactor: 1,
+    eventFactor: 1,
+    operatorFactor: 1,
     queuedUnits: 0,
     laneBacklogUnits: 0,
     currentHoldInventory: 3,
@@ -412,6 +429,38 @@ export const DEMO_ALERTS: DynamicAlert[] = [
     delayMs: 75000,
   },
 ];
+
+export type ForecastModifierAlertId = (typeof DEMO_ALERTS)[number]["id"];
+
+/** Per-alert demand multipliers while the alert is active (demo). */
+export const ALERT_FORECAST_MULTIPLIERS: Record<
+  ForecastModifierAlertId,
+  {
+    durationSimulatedSeconds: number;
+    byMenuItemId: Partial<Record<string, number>>;
+  }
+> = {
+  "alert-weather": {
+    durationSimulatedSeconds: 1800,
+    byMenuItemId: {
+      "original-chicken": 1.12,
+      "french-fries": 1.08,
+    },
+  },
+  "alert-event": {
+    durationSimulatedSeconds: 1800,
+    byMenuItemId: {
+      "french-fries": 1.18,
+      "original-chicken": 1.1,
+    },
+  },
+  "alert-demand": {
+    durationSimulatedSeconds: 1200,
+    byMenuItemId: {
+      "apple-pie": 0.82,
+    },
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Dashboard — Reporting mock data

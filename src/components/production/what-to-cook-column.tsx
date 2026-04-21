@@ -91,13 +91,25 @@ export function WhatToCookColumn({ items, onStartCooking }: Props) {
                 </p>
               </div>
 
+              <div className="bg-background/60 flex flex-wrap justify-center gap-1.5 rounded-md border px-2 py-1.5 text-[10px] leading-tight">
+                <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 font-medium text-emerald-900 tabular-nums dark:text-emerald-100">
+                  Base {Math.round(item.forecastedDemand)}
+                </span>
+                <span className="text-muted-foreground tabular-nums">
+                  ×{item.velocityFactor.toFixed(2)} ×{item.eventFactor.toFixed(2)}{" "}
+                  ×{item.operatorFactor.toFixed(2)}
+                </span>
+                <span className="rounded bg-violet-500/15 px-1.5 py-0.5 font-semibold text-violet-900 tabular-nums dark:text-violet-100">
+                  Adj {Math.round(item.adjustedExpectedDemand)}
+                </span>
+              </div>
               <div className="bg-background/60 grid grid-cols-3 gap-1 rounded-md border p-2 text-center text-[11px] leading-tight sm:grid-cols-6">
                 <div>
                   <div className="font-semibold tabular-nums">
-                    {Math.round(item.forecastedDemand)}
+                    {Math.round(item.adjustedExpectedDemand)}
                   </div>
                   <div className="text-muted-foreground text-[10px]">
-                    Next 30m
+                    Plan 30m
                   </div>
                 </div>
                 <div className="text-muted-foreground">
@@ -133,8 +145,8 @@ export function WhatToCookColumn({ items, onStartCooking }: Props) {
               </div>
               {(item.queuedUnits > 0 || item.laneBacklogUnits > 0) && (
                 <p className="text-muted-foreground text-center text-[10px] leading-tight">
-                  Cook target includes queue and lane backlog (not the statistical
-                  forecast).
+                  Cook target includes queue and lane on top of the adjusted plan
+                  (baseline × factors).
                 </p>
               )}
 

@@ -8,10 +8,24 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useState,
   type ReactNode,
 } from "react";
 
 import type { RemoteCommand } from "@/lib/demo-commands";
+import {
+  createInitialDemoClock,
+  demoNowFromClock,
+  jumpDemoClockToLocalTime,
+  setDemoClockTimeScale,
+  syncDemoClockToWallNow,
+  type DemoClockState,
+} from "@/lib/demo-clock";
+import {
+  computeForecastBreakdown,
+  type ActiveForecastModifier,
+  type ForecastBreakdownContext,
+} from "@/lib/forecast-breakdown";
 import type {
   CaptureMethod,
   CookingBatch,
@@ -23,16 +37,14 @@ import type {
   WhatToCookItem,
 } from "@/lib/mock-data";
 import {
-  FORECAST_DEFAULT_WINDOW_MINUTES,
-  forecastUnitsInWindow,
-} from "@/lib/forecast";
-import {
+  ALERT_FORECAST_MULTIPLIERS,
   INITIAL_COOKING,
   INITIAL_EVENTS,
   INITIAL_HELD,
   INITIAL_WASTE,
   INITIAL_WHAT_TO_COOK,
   MENU_ITEMS,
+  STORE,
 } from "@/lib/mock-data";
 
 // ---------------------------------------------------------------------------
@@ -76,6 +88,14 @@ export type ProductionState = {
   /** Seconds-of-elapsed at which a simulated lane order was last enqueued per item. */
   lastSaleAt: Record<string, number>;
   overlay: CommandOverlay | null;
+  /** Accelerated virtual store clock (forecast + simulation). */
+  demoClock: DemoClockState;
+  /** Rolling direct-serve sales samples (units per tick), newest last. */
+  velocityHistory: Record<string, number[]>;
+  /** Active `dynamic-alert` forecast modifiers (simulated elapsed expiry). */
+  activeForecastModifiers: ActiveForecastModifier[];
+  /** Recent hold-expiry waste for operator factor. */
+  wasteHistory: Array<{ elapsed: number; units: number }>;
 };
 
 const EVENT_LOG_MAX = 16;
@@ -176,8 +196,8 @@ function buildOverlay(
 }
 
 /**
- * Cook quantity = max(0, next-window forecast − hold − cooking + queued POS + lane backlog).
- * Forecast is time-based only; sold units flow through hold inventory.
+ * Cook quantity = max(0, adjusted expectation − hold − cooking + queued POS + lane backlog).
+ * `forecastedDemand` is baseline-only; `adjustedExpectedDemand` includes demo factors.
  */
 function computeCookQuantity(
   item: WhatToCookItem,
@@ -186,7 +206,7 @@ function computeCookQuantity(
   const opsOverlay = item.queuedUnits + item.laneBacklogUnits;
   const rawCook = Math.max(
     0,
-    item.forecastedDemand -
+    item.adjustedExpectedDemand -
       item.currentHoldInventory -
       item.currentlyCooking +
       opsOverlay,
@@ -265,6 +285,20 @@ function queuedUnitsForItem(
     .reduce((s, o) => s + o.quantity, 0);
 }
 
+function forecastSliceContext(
+  state: ProductionState,
+): ForecastBreakdownContext {
+  return {
+    elapsed: state.elapsed,
+    timeScale: state.demoClock.timeScale,
+    velocityHistory: state.velocityHistory,
+    activeForecastModifiers: state.activeForecastModifiers.filter(
+      (m) => m.untilElapsed > state.elapsed,
+    ),
+    wasteHistory: state.wasteHistory,
+  };
+}
+
 function recomputeWhatToCook(
   whatToCook: WhatToCookItem[],
   held: HeldBatch[],
@@ -274,20 +308,21 @@ function recomputeWhatToCook(
   soldDelta: Record<string, number>,
   resetSoldFor: string | null,
   now: Date,
+  breakdownCtx: ForecastBreakdownContext,
 ): WhatToCookItem[] {
   return whatToCook.map((item) => {
     const mi = menuItem(item.menuItemId);
     const deltaSold = soldDelta[item.menuItemId] ?? 0;
     const baseSold =
       resetSoldFor === item.menuItemId ? 0 : item.soldSinceLastCook;
-    const forecastedDemand = forecastUnitsInWindow(
-      item.menuItemId,
-      now,
-      FORECAST_DEFAULT_WINDOW_MINUTES,
-    );
+    const bd = computeForecastBreakdown(item.menuItemId, now, breakdownCtx);
     const merged: WhatToCookItem = {
       ...item,
-      forecastedDemand,
+      forecastedDemand: bd.baselineUnits,
+      adjustedExpectedDemand: bd.adjustedUnits,
+      velocityFactor: bd.velocityFactor,
+      eventFactor: bd.eventFactor,
+      operatorFactor: bd.operatorFactor,
       queuedUnits: queuedUnitsForItem(incomingOrders, item.menuItemId),
       laneBacklogUnits: laneBacklog[item.menuItemId] ?? 0,
       currentHoldInventory: totalHeldForItem(held, item.menuItemId),
@@ -317,6 +352,7 @@ function applyCookStartCommand(
     targetReadyAtMs: Date.now() + mi.cookTimeSeconds * 1000,
   };
   const cooking = [...state.cooking, batch];
+  const now = demoNowFromClock(state.demoClock);
   const whatToCook = recomputeWhatToCook(
     state.whatToCook,
     state.held,
@@ -325,7 +361,8 @@ function applyCookStartCommand(
     state.laneBacklog,
     {},
     command.menuItemId,
-    new Date(),
+    now,
+    forecastSliceContext(state),
   );
   const events = emit(
     state.events,
@@ -384,6 +421,7 @@ function applyHotHoldCommand(
       holdTimeSeconds: mi.holdTimeSeconds,
     },
   ];
+  const now = demoNowFromClock(state.demoClock);
   const whatToCook = recomputeWhatToCook(
     state.whatToCook,
     held,
@@ -392,7 +430,8 @@ function applyHotHoldCommand(
     state.laneBacklog,
     {},
     null,
-    new Date(),
+    now,
+    forecastSliceContext(state),
   );
   const events = emit(
     state.events,
@@ -437,9 +476,23 @@ function applyEnqueueServedCommand(
     `${narratedLabel(command.method, command.narration)} · ${lane} incoming (${command.quantity}× ${mi.name})`,
     methodConfidence(command.method),
   );
+  const incomingOrders = [...state.incomingOrders, order];
+  const now = demoNowFromClock(state.demoClock);
+  const whatToCook = recomputeWhatToCook(
+    state.whatToCook,
+    state.held,
+    state.cooking,
+    incomingOrders,
+    state.laneBacklog,
+    {},
+    null,
+    now,
+    forecastSliceContext(state),
+  );
   return {
     ...state,
-    incomingOrders: [...state.incomingOrders, order],
+    incomingOrders,
+    whatToCook,
     events,
     overlay: buildOverlay(command, origin),
   };
@@ -466,6 +519,7 @@ function applyDirectServedCommand(
   }
 
   const soldDelta = sold > 0 ? { [command.menuItemId]: sold } : {};
+  const now = demoNowFromClock(state.demoClock);
   const whatToCook = recomputeWhatToCook(
     state.whatToCook,
     held,
@@ -474,7 +528,8 @@ function applyDirectServedCommand(
     laneBacklog,
     soldDelta,
     null,
-    new Date(),
+    now,
+    forecastSliceContext(state),
   );
   const tail =
     sold === 0 && command.quantity > 0
@@ -529,6 +584,7 @@ function applyFulfillOrder(
 
   const soldDelta = sold > 0 ? { [order.menuItemId]: sold } : {};
 
+  const now = demoNowFromClock(state.demoClock);
   const whatToCook = recomputeWhatToCook(
     state.whatToCook,
     held,
@@ -537,7 +593,8 @@ function applyFulfillOrder(
     state.laneBacklog,
     soldDelta,
     null,
-    new Date(),
+    now,
+    forecastSliceContext(state),
   );
 
   const mi = menuItem(order.menuItemId);
@@ -569,6 +626,124 @@ function applyFulfillOrder(
       origin: "local",
       at: Date.now(),
     },
+  };
+}
+
+function applyDynamicAlertCommand(
+  state: ProductionState,
+  command: Extract<RemoteCommand, { type: "dynamic-alert" }>,
+  origin: CommandOrigin,
+): ProductionState {
+  const cfg = ALERT_FORECAST_MULTIPLIERS[command.alertId];
+  const duration = cfg?.durationSimulatedSeconds ?? 1800;
+  const untilElapsed = state.elapsed + duration;
+  const activeForecastModifiers = [
+    ...state.activeForecastModifiers.filter(
+      (m) => m.alertId !== command.alertId && m.untilElapsed > state.elapsed,
+    ),
+    { alertId: command.alertId, untilElapsed },
+  ];
+  const now = demoNowFromClock(state.demoClock);
+  const whatToCook = recomputeWhatToCook(
+    state.whatToCook,
+    state.held,
+    state.cooking,
+    state.incomingOrders,
+    state.laneBacklog,
+    {},
+    null,
+    now,
+    forecastSliceContext({ ...state, activeForecastModifiers }),
+  );
+  return {
+    ...state,
+    activeForecastModifiers,
+    whatToCook,
+    overlay: buildOverlay(command, origin),
+  };
+}
+
+function applySetDemoTimeCommand(
+  state: ProductionState,
+  command: Extract<RemoteCommand, { type: "set-demo-time" }>,
+  origin: CommandOrigin,
+): ProductionState {
+  const clock = jumpDemoClockToLocalTime(
+    state.demoClock,
+    command.hour,
+    command.minute,
+    STORE.timezone,
+    demoNowFromClock(state.demoClock),
+  );
+  const now = demoNowFromClock(clock);
+  const whatToCook = recomputeWhatToCook(
+    state.whatToCook,
+    state.held,
+    state.cooking,
+    state.incomingOrders,
+    state.laneBacklog,
+    {},
+    null,
+    now,
+    forecastSliceContext(state),
+  );
+  return {
+    ...state,
+    demoClock: clock,
+    whatToCook,
+    overlay: buildOverlay(command, origin),
+  };
+}
+
+function applySetDemoTimeScaleCommand(
+  state: ProductionState,
+  command: Extract<RemoteCommand, { type: "set-demo-time-scale" }>,
+  origin: CommandOrigin,
+): ProductionState {
+  const clock = setDemoClockTimeScale(state.demoClock, command.timeScale);
+  const now = demoNowFromClock(clock);
+  const nextState: ProductionState = { ...state, demoClock: clock };
+  const whatToCook = recomputeWhatToCook(
+    state.whatToCook,
+    state.held,
+    state.cooking,
+    state.incomingOrders,
+    state.laneBacklog,
+    {},
+    null,
+    now,
+    forecastSliceContext(nextState),
+  );
+  return {
+    ...nextState,
+    whatToCook,
+    overlay: buildOverlay(command, origin),
+  };
+}
+
+function applySetDemoNowCommand(
+  state: ProductionState,
+  command: Extract<RemoteCommand, { type: "set-demo-now" }>,
+  origin: CommandOrigin,
+): ProductionState {
+  const clock = syncDemoClockToWallNow(state.demoClock);
+  const now = demoNowFromClock(clock);
+  const whatToCook = recomputeWhatToCook(
+    state.whatToCook,
+    state.held,
+    state.cooking,
+    state.incomingOrders,
+    state.laneBacklog,
+    {},
+    null,
+    now,
+    forecastSliceContext({ ...state, demoClock: clock }),
+  );
+  return {
+    ...state,
+    demoClock: clock,
+    whatToCook,
+    overlay: buildOverlay(command, origin),
   };
 }
 
@@ -605,13 +780,14 @@ function applyDisposalCommand(
 function reducer(state: ProductionState, action: Action): ProductionState {
   switch (action.type) {
     case "TICK": {
-      const elapsed = state.elapsed + 1;
+      const dt = state.demoClock.timeScale;
+      const elapsed = state.elapsed + dt;
       let events = state.events;
 
       // 1. Advance cooking timers and promote finished batches to held.
       let cooking = state.cooking.map((b) => ({
         ...b,
-        startedAtSeconds: b.startedAtSeconds + 1,
+        startedAtSeconds: b.startedAtSeconds + dt,
       }));
 
       const promotedToHold: HeldBatch[] = [];
@@ -641,7 +817,7 @@ function reducer(state: ProductionState, action: Action): ProductionState {
       // 2. Advance held timers; expire to waste.
       let held = [...state.held, ...promotedToHold].map((b) => ({
         ...b,
-        heldAtSeconds: b.heldAtSeconds + 1,
+        heldAtSeconds: b.heldAtSeconds + dt,
       }));
 
       const newWaste: WasteEntry[] = [];
@@ -678,6 +854,32 @@ function reducer(state: ProductionState, action: Action): ProductionState {
         }
       }
 
+      const activeForecastModifiers = state.activeForecastModifiers.filter(
+        (m) => m.untilElapsed > elapsed,
+      );
+
+      const velocityHistory: Record<string, number[]> = { ...state.velocityHistory };
+      for (const mi of MENU_ITEMS) {
+        const add = soldDelta[mi.id] ?? 0;
+        velocityHistory[mi.id] = [...(velocityHistory[mi.id] ?? []), add].slice(
+          -30,
+        );
+      }
+
+      let wasteHistory = state.wasteHistory;
+      if (newWaste.length > 0) {
+        const add = newWaste.map((w) => ({ elapsed, units: w.quantity }));
+        wasteHistory = [...state.wasteHistory, ...add].slice(-80);
+      }
+
+      const sliceCtx: ForecastBreakdownContext = {
+        elapsed,
+        timeScale: state.demoClock.timeScale,
+        velocityHistory,
+        activeForecastModifiers,
+        wasteHistory,
+      };
+
       const whatToCook = recomputeWhatToCook(
         state.whatToCook,
         held,
@@ -686,12 +888,16 @@ function reducer(state: ProductionState, action: Action): ProductionState {
         state.laneBacklog,
         soldDelta,
         null,
-        new Date(),
+        demoNowFromClock(state.demoClock),
+        sliceCtx,
       );
 
-      // 5. Occasional inventory-detection ping for the camera feed.
-      if (elapsed % INVENTORY_EVENT_INTERVAL_SECONDS === 0) {
-        const pingItem = MENU_ITEMS[elapsed % MENU_ITEMS.length];
+      const invPrev = Math.floor(
+        (elapsed - dt) / INVENTORY_EVENT_INTERVAL_SECONDS,
+      );
+      const invNext = Math.floor(elapsed / INVENTORY_EVENT_INTERVAL_SECONDS);
+      if (invNext > invPrev && invNext > 0) {
+        const pingItem = MENU_ITEMS[invNext % MENU_ITEMS.length];
         const qty = totalHeldForItem(held, pingItem.id);
         events = emit(
           events,
@@ -711,6 +917,9 @@ function reducer(state: ProductionState, action: Action): ProductionState {
         events,
         whatToCook,
         lastSaleAt,
+        velocityHistory,
+        wasteHistory,
+        activeForecastModifiers,
       };
     }
 
@@ -726,6 +935,7 @@ function reducer(state: ProductionState, action: Action): ProductionState {
       };
 
       const cooking = [...state.cooking, batch];
+      const now = demoNowFromClock(state.demoClock);
       const whatToCook = recomputeWhatToCook(
         state.whatToCook,
         state.held,
@@ -734,7 +944,8 @@ function reducer(state: ProductionState, action: Action): ProductionState {
         state.laneBacklog,
         {},
         action.menuItemId,
-        new Date(),
+        now,
+        forecastSliceContext(state),
       );
 
       const captureLabel =
@@ -793,6 +1004,18 @@ function reducer(state: ProductionState, action: Action): ProductionState {
         }
         case "disposal":
           return applyDisposalCommand(state, action.command, action.origin);
+        case "dynamic-alert":
+          return applyDynamicAlertCommand(state, action.command, action.origin);
+        case "set-demo-time":
+          return applySetDemoTimeCommand(state, action.command, action.origin);
+        case "set-demo-time-scale":
+          return applySetDemoTimeScaleCommand(
+            state,
+            action.command,
+            action.origin,
+          );
+        case "set-demo-now":
+          return applySetDemoNowCommand(state, action.command, action.origin);
       }
     }
 
@@ -806,14 +1029,15 @@ function reducer(state: ProductionState, action: Action): ProductionState {
 // ---------------------------------------------------------------------------
 
 function createInitialProductionState(): ProductionState {
-  const now = Date.now();
+  const wall = Date.now();
   const cooking = INITIAL_COOKING.map((b) => {
     const mi = menuItem(b.menuItemId);
     return {
       ...b,
-      targetReadyAtMs: now + (mi.cookTimeSeconds - b.startedAtSeconds) * 1000,
+      targetReadyAtMs: wall + (mi.cookTimeSeconds - b.startedAtSeconds) * 1000,
     };
   });
+  const demoClock = createInitialDemoClock();
   const base: ProductionState = {
     whatToCook: INITIAL_WHAT_TO_COOK,
     cooking,
@@ -825,6 +1049,18 @@ function createInitialProductionState(): ProductionState {
     elapsed: 0,
     lastSaleAt: {},
     overlay: null,
+    demoClock,
+    velocityHistory: {},
+    activeForecastModifiers: [],
+    wasteHistory: [],
+  };
+  const now = demoNowFromClock(demoClock);
+  const initCtx: ForecastBreakdownContext = {
+    elapsed: 0,
+    timeScale: demoClock.timeScale,
+    velocityHistory: {},
+    activeForecastModifiers: [],
+    wasteHistory: [],
   };
   return {
     ...base,
@@ -836,13 +1072,16 @@ function createInitialProductionState(): ProductionState {
       base.laneBacklog,
       {},
       null,
-      new Date(),
+      now,
+      initCtx,
     ),
   };
 }
 
 export type ProductionContextValue = {
   state: ProductionState;
+  /** Virtual store clock (1× wall by default); updates on a short interval for UI. */
+  demoNow: Date;
   startCooking: (
     menuItemId: string,
     quantity: number,
@@ -861,6 +1100,17 @@ export function ProductionProvider({ children }: { children: ReactNode }) {
     undefined,
     createInitialProductionState,
   );
+
+  const [renderTick, setRenderTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setRenderTick((x) => x + 1), 200);
+    return () => clearInterval(id);
+  }, []);
+
+  const demoNow = useMemo(() => {
+    void renderTick;
+    return demoNowFromClock(state.demoClock);
+  }, [state.demoClock, renderTick]);
 
   useEffect(() => {
     const id = setInterval(() => dispatch({ type: "TICK" }), 1000);
@@ -895,12 +1145,13 @@ export function ProductionProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ProductionContextValue>(
     () => ({
       state,
+      demoNow,
       startCooking,
       fulfillOrder,
       confirmDisposal,
       applyCommand,
     }),
-    [state, startCooking, fulfillOrder, confirmDisposal, applyCommand],
+    [state, demoNow, startCooking, fulfillOrder, confirmDisposal, applyCommand],
   );
 
   return createElement(ProductionContext.Provider, { value }, children);
