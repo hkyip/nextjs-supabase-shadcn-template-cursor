@@ -40,14 +40,20 @@ export function analyzeDepletion(
   const activeSpitLbs = activeSpit?.remainingLbs ?? 0;
   const accessibleLbs = activeSpitLbs;
   const portionsFromSpit = Math.floor(activeSpitLbs / config.portionLbs);
-  const accessiblePortions =
-    Math.max(0, steamTablePortionsRemaining) + portionsFromSpit;
+  // Always floor portions for display — fractional portions aren't actionable
+  // (you can't sell a 0.083-portion of chicken).
+  const accessiblePortions = Math.floor(
+    Math.max(0, steamTablePortionsRemaining) + portionsFromSpit,
+  );
 
   const curve: DepletionPoint[] = [];
   let stockoutAtMs: number | null = null;
   for (let m = 0; m <= PROJECTION_MINUTES; m += 1) {
     const consumed = posVelocityPerMin * m;
-    const remaining = Math.max(0, accessiblePortions - consumed);
+    // Round chart points to 2 decimals — keeps SVG paths compact and avoids
+    // long float strings if anyone ever reads the rendered tree.
+    const remaining =
+      Math.round(Math.max(0, accessiblePortions - consumed) * 100) / 100;
     curve.push({ minutesAhead: m, portionsRemaining: remaining });
     if (remaining <= 0 && stockoutAtMs == null) {
       stockoutAtMs = nowMs + m * 60 * 1000;
@@ -72,6 +78,7 @@ export function analyzeDepletion(
   );
 
   return {
+    // 1 decimal for weights, integer for counts — never raw floats.
     accessibleLbs: Math.round(accessibleLbs * 10) / 10,
     accessiblePortions,
     stockoutAtMs,
