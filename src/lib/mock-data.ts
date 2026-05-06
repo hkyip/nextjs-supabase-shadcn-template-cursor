@@ -79,7 +79,7 @@ export const MENU_ITEMS: MenuItem[] = [
 ];
 
 /**
- * Shrinks statistical forecast units on `/forecast` and "Next 30m" in production so
+ * Shrinks statistical forecast units on `/fry-kitchen` and "Next 30m" in production so
  * values are easy to eyeball (e.g. tens instead of hundreds). Does not affect
  * `salesIntervalSeconds` or the POS simulation tick.
  */

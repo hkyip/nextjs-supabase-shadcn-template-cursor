@@ -79,7 +79,7 @@ const STEPS = [
     step: "1",
     title: "Forecast",
     description:
-      "The V0 demo uses a time-of-day curve per SKU in store local time: open /forecast for the next 30 minutes and the full day in 5 or 30 minute buckets. That number is statistical only—POS queue and lane backlog layer on top on /production.",
+      "The V0 demo uses a time-of-day curve per SKU in store local time: open /fry-kitchen for the next 30 minutes and the full day in 5 or 30 minute buckets. That number is statistical only—POS queue and lane backlog layer on top on /production.",
   },
   {
     step: "2",

@@ -6,7 +6,9 @@ import {
   BarChart3,
   Camera,
   ChefHat,
+  Drumstick,
   LayoutDashboard,
+  Leaf,
   LineChart,
   Settings,
 } from "lucide-react";
@@ -16,7 +18,9 @@ import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
   { href: "/production", label: "Production", icon: ChefHat },
-  { href: "/forecast", label: "Forecast", icon: LineChart },
+  { href: "/fry-kitchen", label: "Fry kitchen", icon: LineChart },
+  { href: "/chicken-spit", label: "Chicken spit", icon: Drumstick },
+  { href: "/salade-prep", label: "Salade prep", icon: Leaf },
   { href: "/camera", label: "Camera", icon: Camera },
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/config", label: "Config", icon: Settings },
@@ -44,6 +48,7 @@ export function DemoNav() {
                   ? "bg-accent text-accent-foreground"
                   : "text-muted-foreground",
               )}
+              aria-current={pathname === link.href ? "page" : undefined}
             >
               <link.icon className="size-4" />
               {link.label}

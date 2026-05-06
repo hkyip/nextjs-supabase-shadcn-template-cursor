@@ -187,7 +187,8 @@ export function ForecastView() {
           Timeline runs at {state.demoClock.timeScale}× wall speed (default{" "}
           {DEMO_TIME_SCALE_DEFAULT}×) ·{" "}
           <span className="font-mono text-foreground">/remote</span> for time of
-          day and 1× / 10× speed
+          day and 1× / 10× speed (same session as{" "}
+          <span className="font-mono text-foreground">/fry-kitchen</span>)
         </p>
       </div>
 

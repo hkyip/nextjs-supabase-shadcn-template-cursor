@@ -13,7 +13,7 @@ function pickRoom(raw: string | null): string {
 
 /**
  * Subscribes to Supabase remote commands for the current URL `room` (default `demo`)
- * on every demo route, so `/forecast` and `/production` stay aligned without mounting
+ * on every demo route, so `/fry-kitchen` (demand curve) and `/production` stay aligned without mounting
  * {@link ProductionBoard}.
  */
 export function ProductionRemoteBridge() {

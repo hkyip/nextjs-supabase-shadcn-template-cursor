@@ -508,7 +508,7 @@ export function RemoteConsole({ room }: Props) {
               <RemoteSection
                 icon={Clock}
                 title="Demo store time"
-                description="Jump the store clock and set how fast demo time runs vs wall clock (same session as /forecast). Does not change your device clock."
+                description="Jump the store clock and set how fast demo time runs vs wall clock (same session as /fry-kitchen). Does not change your device clock."
               >
                 <div className="grid gap-2.5 sm:grid-cols-2">
                   <Button

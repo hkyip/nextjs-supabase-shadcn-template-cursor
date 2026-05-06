@@ -46,7 +46,7 @@ where **`adjustedPlan = baseline × velocity × eventMult × operator`** (demo):
 | Rate anchor | `salesIntervalSeconds` per SKU |
 | Demo scale | `FORECAST_DEMO_UNIT_SCALE` (forecast display only; does not retime POS sim) |
 | Horizon | `FORECAST_DEFAULT_WINDOW_MINUTES` (30) |
-| Buckets | `intradayBucketsForDate` — `/forecast` highlights buckets overlapping **now → now+30m** |
+| Buckets | `intradayBucketsForDate` — `/fry-kitchen` highlights buckets overlapping **now → now+30m** |
 
 **Rate (concept):** `(1 / salesIntervalSeconds) × (hourlyWeight / meanWeight) × FORECAST_DEMO_UNIT_SCALE`; integrate over the window for **expected units**.
 
@@ -65,7 +65,8 @@ where **`adjustedPlan = baseline × velocity × eventMult × operator`** (demo):
 
 | Path | Role |
 |------|------|
-| `/forecast` | Demo clock header, layered line chart, intraday chart + next-window band, explainer |
+| `/fry-kitchen` | Fry / hot-side demand curve demo (forecast view). **`/forecast` redirects here.** |
+| `/salade-prep` | Salata cold salad prep prototype driven by mocked usage + hybrid event signals. |
 | `/production` | Tiles: baseline × factors → adjusted plan; queue/lane vs pipeline → cook qty |
 | `/remote` | Presets jump demo time; forecast alerts apply event multipliers |
 
