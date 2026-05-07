@@ -192,5 +192,16 @@ export function createInitialWingsState(
     wingsSoldToday:
       config.scenario === "calm" ? 84 : config.scenario === "pre-rush" ? 156 : 312,
     lastTickMs: nowMs,
+    kpis: {
+      dineinServed:
+        config.scenario === "calm" ? 4 : config.scenario === "pre-rush" ? 8 : 18,
+      forecastVsActual: [],
+      // Hardcoded baseline: at $33.99 / 2 lb published price = $16.995 / lb
+      // Deck names "modest 2-lb/day" uplift. We model baseline = 5 lb/hr pre-AI.
+      baselineLbsPerHour: 5,
+      revenueLiftDollars: 0,
+    },
+    currentBucketActualLbs: 0,
+    currentBucketStartMs: nowMs,
   };
 }

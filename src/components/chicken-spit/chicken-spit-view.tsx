@@ -9,6 +9,8 @@ import { AlertStack } from "@/components/chicken-spit/alert-stack";
 import { GrillTimerCard } from "@/components/chicken-spit/grill-timer-card";
 import { ReprepTriggerCard } from "@/components/chicken-spit/reprep-trigger-card";
 import { SpitCameraCard } from "@/components/chicken-spit/spit-camera-card";
+import { SpitConfigCard } from "@/components/chicken-spit/spit-config-card";
+import { SpitKpiStrip } from "@/components/chicken-spit/spit-kpi-strip";
 import { SpitPlanCard } from "@/components/chicken-spit/spit-plan-card";
 import { SteamTableCard } from "@/components/chicken-spit/steam-table-card";
 import { analyzeDepletion } from "@/lib/chicken-spit/depletion";
@@ -22,12 +24,15 @@ import {
 import { deriveSpitState, tickSpit } from "@/lib/chicken-spit/readiness";
 import { cn } from "@/lib/utils";
 import type {
+  ChickenSpitConfigV1,
   ChickenSpitPersistedStateV1,
   Spit,
   SpitAlert,
+  SpitScenario,
 } from "@/lib/chicken-spit/types";
 
 const TICK_MS = 1000;
+const FORECAST_BUCKET_MS = 15 * 60_000;
 
 export function ChickenSpitView() {
   const [hydrated, setHydrated] = useState(false);
@@ -36,7 +41,6 @@ export function ChickenSpitView() {
   );
   const [paused, setPaused] = useState(false);
 
-  // Hydrate from localStorage after first paint.
   useEffect(() => {
     const t = window.setTimeout(() => {
       const persisted = loadChickenSpitPersisted();
@@ -66,7 +70,6 @@ export function ChickenSpitView() {
     [],
   );
 
-  // 1Hz simulation tick.
   useEffect(() => {
     if (!hydrated || paused) return;
     const id = window.setInterval(() => {
@@ -75,7 +78,6 @@ export function ChickenSpitView() {
     return () => window.clearInterval(id);
   }, [hydrated, paused]);
 
-  // Debounced persistence.
   useEffect(() => {
     if (!hydrated) return;
     const id = window.setTimeout(() => {
@@ -93,11 +95,11 @@ export function ChickenSpitView() {
       state.spits.find(
         (s) =>
           !s.active &&
-          s.id !== activeSpit.id &&
+          s.id !== activeSpit?.id &&
           s.cookProgress > 0 &&
           s.remainingLbs > 0,
       ),
-    [state.spits, activeSpit.id],
+    [state.spits, activeSpit?.id],
   );
 
   const analysis = useMemo(
@@ -117,6 +119,11 @@ export function ChickenSpitView() {
       const actuallyShaved = Math.min(lbs, active.remainingLbs);
       if (actuallyShaved <= 0) return prev;
       const portionsAdded = actuallyShaved / prev.config.portionLbs;
+
+      // Classify the cut: cookProgress 0.82..1.0 = ideal, otherwise late/early
+      const inIdeal =
+        active.cookProgress >= 0.82 && active.cookProgress <= 1.0;
+
       const nextSpits = prev.spits.map((s, i) =>
         i === activeIdx
           ? { ...s, remainingLbs: s.remainingLbs - actuallyShaved }
@@ -129,20 +136,22 @@ export function ChickenSpitView() {
           prev.steamTableCapacity,
           prev.steamTablePortionsRemaining + portionsAdded,
         ),
+        kpis: {
+          ...prev.kpis,
+          totalCuts: prev.kpis.totalCuts + 1,
+          idealCuts: prev.kpis.idealCuts + (inIdeal ? 1 : 0),
+        },
       };
     });
   }, []);
 
   const startNewSpit = useCallback((lbs: number) => {
     setState((prev) => {
-      // Only block if a non-active spit is mid-cook AND still has chicken on it
-      // (i.e. a fresh load is already loading & hasn't been promoted yet).
       const alreadyLoading = prev.spits.some(
         (s) => !s.active && s.cookProgress > 0 && s.remainingLbs > 0,
       );
       if (alreadyLoading) return prev;
 
-      // Pick the first available slot: empty (cook=0) or spent (remainingLbs<=0).
       const slotIdx = prev.spits.findIndex(
         (s) => !s.active && (s.cookProgress === 0 || s.remainingLbs <= 0),
       );
@@ -186,10 +195,34 @@ export function ChickenSpitView() {
   }, []);
 
   const plateGrill = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      grillTimer: { status: "idle", startedAtMs: null, elapsedSeconds: 0 },
-    }));
+    setState((prev) => {
+      const elapsed = prev.grillTimer.elapsedSeconds;
+      const violation = elapsed < prev.config.grillMinSeconds;
+      const alerts =
+        violation && prev.grillTimer.startedAtMs != null
+          ? [
+              ...prev.alerts,
+              {
+                id: `alert-${Date.now()}-foodsafety`,
+                kind: "food-safety-violation" as const,
+                severity: "critical" as const,
+                message: `Plated at ${elapsed}s — under ${prev.config.grillMinSeconds}s SOP. Food-safety violation logged.`,
+                createdAtMs: Date.now(),
+              },
+            ]
+          : prev.alerts;
+      return {
+        ...prev,
+        grillTimer: { status: "idle", startedAtMs: null, elapsedSeconds: 0 },
+        alerts,
+        kpis: {
+          ...prev.kpis,
+          totalGrillPulls: prev.kpis.totalGrillPulls + 1,
+          foodSafetyViolations:
+            prev.kpis.foodSafetyViolations + (violation ? 1 : 0),
+        },
+      };
+    });
   }, []);
 
   const acknowledgeAlert = useCallback((id: string) => {
@@ -197,6 +230,57 @@ export function ChickenSpitView() {
       ...prev,
       acknowledgedAlertIds: [...prev.acknowledgedAlertIds, id],
     }));
+  }, []);
+
+  const onConfigChange = useCallback(
+    (next: Partial<ChickenSpitConfigV1>) => {
+      setState((prev) => {
+        const config = { ...prev.config, ...next };
+        let spits = prev.spits;
+        if (next.numSpits && next.numSpits !== prev.config.numSpits) {
+          if (next.numSpits > prev.config.numSpits) {
+            const SLOT_IDS = ["spit-a", "spit-b", "spit-c"];
+            const extra: Spit[] = Array.from(
+              { length: next.numSpits - prev.config.numSpits },
+              (_, i) => ({
+                id: SLOT_IDS[prev.config.numSpits + i],
+                loadedAtMs: 0,
+                initialLbs: 0,
+                remainingLbs: 0,
+                cookProgress: 0,
+                state: "loading" as const,
+                active: false,
+              }),
+            );
+            spits = [...prev.spits, ...extra];
+          } else {
+            spits = prev.spits.slice(0, next.numSpits);
+            // ensure at least one is active if any have chicken
+            if (!spits.some((s) => s.active) && spits.some((s) => s.remainingLbs > 0)) {
+              const firstWithChicken = spits.findIndex((s) => s.remainingLbs > 0);
+              spits = spits.map((s, i) =>
+                i === firstWithChicken ? { ...s, active: true } : s,
+              );
+            }
+          }
+        }
+        const merged = { ...prev, config, spits };
+        saveChickenSpitPersisted(merged);
+        return merged;
+      });
+    },
+    [],
+  );
+
+  const onApplyScenario = useCallback((scenario: SpitScenario) => {
+    setState((prev) => {
+      const fresh = createInitialChickenSpitState(Date.now(), {
+        ...prev.config,
+        scenario,
+      });
+      saveChickenSpitPersisted(fresh);
+      return fresh;
+    });
   }, []);
 
   const resetAll = useCallback(() => {
@@ -212,21 +296,18 @@ export function ChickenSpitView() {
     );
   }
 
-  // "In progress" means: a non-active spit is mid-cook with chicken on it.
-  // (Once promoted to active or depleted to 0 lbs, the slot is reusable.)
   const newSpitInProgress = state.spits.some(
     (s) => !s.active && s.cookProgress > 0 && s.remainingLbs > 0,
   );
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-3 px-3 pb-6 pt-2 lg:px-4">
-      {/* Mission-control header — sticky, dense, all controls inline */}
       <header className="sticky top-12 z-30 -mx-3 lg:-mx-4 border-b border-border/60 bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/70 lg:px-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-base font-bold tracking-tight">Chicken spit</h1>
             <Badge className="bg-orange-500 text-[10px] text-white hover:bg-orange-600">
-              Lunch rush
+              {state.config.scenario}
             </Badge>
             <Kpi icon={<Activity className="size-3" />} label={`${state.posVelocityPerMin}/min`} />
             <Kpi label={`${Math.floor(state.portionsSoldToday)} sold`} />
@@ -276,17 +357,25 @@ export function ChickenSpitView() {
         </div>
       </header>
 
-      {/* Mission grid: 2 cols desktop. Hero (cam + reprep) on left, sidebar on right. */}
+      <SpitConfigCard
+        config={state.config}
+        onConfigChange={onConfigChange}
+        onApplyScenario={onApplyScenario}
+      />
+
+      <SpitKpiStrip kpis={state.kpis} />
+
       <div className="grid gap-3 lg:grid-cols-3">
-        {/* HERO column — operator's primary attention */}
         <div className="space-y-3 lg:col-span-2">
           <div className={cn("grid gap-3", loadingSpit ? "sm:grid-cols-2" : "")}>
-            <SpitCameraCard
-              spit={activeSpit}
-              config={state.config}
-              onAdvance={advanceCook}
-              onShave={shaveActive}
-            />
+            {activeSpit ? (
+              <SpitCameraCard
+                spit={activeSpit}
+                config={state.config}
+                onAdvance={advanceCook}
+                onShave={shaveActive}
+              />
+            ) : null}
             {loadingSpit ? (
               <SpitCameraCard
                 spit={loadingSpit}
@@ -305,7 +394,6 @@ export function ChickenSpitView() {
           />
         </div>
 
-        {/* SIDEBAR column — at-a-glance status + safety + alerts */}
         <aside className="space-y-3">
           <SteamTableCard
             portionsRemaining={state.steamTablePortionsRemaining}
@@ -328,7 +416,6 @@ export function ChickenSpitView() {
         </aside>
       </div>
 
-      {/* Plan — collapsed by default, opens for managers/forecasters */}
       <SpitPlanCard />
     </div>
   );
@@ -343,7 +430,6 @@ function Kpi({ icon, label }: { icon?: React.ReactNode; label: string }) {
   );
 }
 
-/** Single compact wall-clock for the operator bar. */
 function Clock() {
   const [label, setLabel] = useState<string>("");
   useEffect(() => {
@@ -353,8 +439,6 @@ function Clock() {
         minute: "2-digit",
         hour12: true,
       });
-    // Defer the initial setState through setTimeout(…, 0) so it doesn't run
-    // synchronously inside the effect body.
     const t0 = window.setTimeout(() => setLabel(fmt()), 0);
     const id = window.setInterval(() => setLabel(fmt()), 1000);
     return () => {
@@ -372,14 +456,12 @@ function Clock() {
   );
 }
 
-/** Pure simulation step — clamps per-tick game time, only serves real chicken. */
+/** Pure simulation step — clamps per-tick, only serves real chicken, tracks KPIs. */
 function advanceSimulation(
   prev: ChickenSpitPersistedStateV1,
   elapsedMs: number,
 ): ChickenSpitPersistedStateV1 {
   const { config } = prev;
-  // Clamp simulated time per tick to 60 game-seconds — at 60× speed and 1 Hz
-  // that's 1 game-min/tick; any larger and cook progress / depletion break.
   const simSeconds = Math.min(60, (elapsedMs / 1000) * config.simulationSpeed);
 
   const portionsDemanded = prev.posVelocityPerMin * (simSeconds / 60);
@@ -390,12 +472,10 @@ function advanceSimulation(
   let activeRemainingLbs =
     activeIdx >= 0 ? prev.spits[activeIdx].remainingLbs : 0;
 
-  // 1. Sell from steam table first — cap at what's actually there.
   let portionsSold = Math.min(steamTable, portionsDemanded);
   steamTable -= portionsSold;
   let portionsShortfall = portionsDemanded - portionsSold;
 
-  // 2. If shortfall, serve directly from active spit (only what's available).
   if (portionsShortfall > 0 && activeRemainingLbs > 0) {
     const lbsForShortfall = Math.min(
       portionsShortfall * portionLbs,
@@ -407,7 +487,6 @@ function advanceSimulation(
     activeRemainingLbs -= lbsForShortfall;
   }
 
-  // 3. Refill steam table toward holding level — only from chicken we actually have.
   const refillTargetPortions = 8;
   const refillNeeded = Math.max(0, refillTargetPortions - steamTable);
   if (refillNeeded > 0 && activeRemainingLbs > 0) {
@@ -417,14 +496,22 @@ function advanceSimulation(
     activeRemainingLbs -= lbsToShave;
   }
 
-  // 4. Tick the active spit — cook progress advances, remaining lbs already deducted.
+  // Stockout detection: stockout = steam table empty AND no active chicken AND demand active
+  const stockedOutNow =
+    steamTable <= 0 &&
+    activeRemainingLbs <= 0 &&
+    portionsShortfall > 0;
+  const stockoutEvents =
+    stockedOutNow && !prev.prevStockedout
+      ? prev.kpis.stockoutEvents + 1
+      : prev.kpis.stockoutEvents;
+
   let nextSpits = prev.spits.map((s, i) =>
     i === activeIdx
       ? tickSpit({ ...s, remainingLbs: activeRemainingLbs }, config, simSeconds, 0)
       : s,
   );
 
-  // 5. Tick the loading spit (cook progress only, no shaving).
   const loadingIdx = nextSpits.findIndex(
     (s) => !s.active && s.cookProgress > 0 && s.remainingLbs > 0,
   );
@@ -437,12 +524,21 @@ function advanceSimulation(
     nextSpits[loadingIdx] = { ...nextSpits[loadingIdx], active: false };
   }
 
-  // 6. Promote a ready loading spit to active when current active depletes.
   const activeAfter = nextSpits.find((s) => s.active);
   const promoteCandidate = nextSpits.find(
     (s) => !s.active && s.cookProgress >= 0.82 && s.remainingLbs > 0,
   );
+  // Track shrinkage when an active spit is being demoted (depleted)
+  let shrinkageHistory = prev.kpis.shrinkageHistory;
   if (activeAfter && activeAfter.remainingLbs <= 0.1 && promoteCandidate) {
+    // Compute shrinkage % for the depleting spit. We don't track raw weight,
+    // so model shrinkage as 22-38% based on how far past ready it cooked.
+    const overcookFactor = Math.max(0, activeAfter.cookProgress - 0.92);
+    const pct = Math.min(45, 22 + overcookFactor * 80);
+    shrinkageHistory = [
+      ...shrinkageHistory,
+      { tMs: Date.now(), spitId: activeAfter.id, pct: Math.round(pct * 10) / 10 },
+    ].slice(-30);
     nextSpits = nextSpits.map<Spit>((s) => {
       if (s.id === activeAfter.id) return { ...s, active: false };
       if (s.id === promoteCandidate.id) return { ...s, active: true };
@@ -452,6 +548,28 @@ function advanceSimulation(
 
   const portionsSoldToday = prev.portionsSoldToday + portionsSold;
   const active = nextSpits.find((s) => s.active);
+
+  // Forecast vs. actual bucketing — every 15 min wall, snapshot a bucket
+  let currentBucketActualLbs =
+    prev.currentBucketActualLbs + portionsSold * portionLbs;
+  let currentBucketStartMs = prev.currentBucketStartMs;
+  let forecastVsActual = prev.kpis.forecastVsActual;
+  const now = Date.now();
+  if (now - currentBucketStartMs >= FORECAST_BUCKET_MS) {
+    // Forecast = posVelocity × 15 min × portionLbs (idealized straight-line)
+    const forecastLbs =
+      prev.posVelocityPerMin * 15 * portionLbs;
+    forecastVsActual = [
+      ...forecastVsActual,
+      {
+        tMs: currentBucketStartMs,
+        forecastLbs: Math.round(forecastLbs * 10) / 10,
+        actualLbs: Math.round(currentBucketActualLbs * 10) / 10,
+      },
+    ].slice(-12);
+    currentBucketActualLbs = 0;
+    currentBucketStartMs = now;
+  }
 
   let grillTimer = prev.grillTimer;
   if (grillTimer.status !== "idle" && grillTimer.startedAtMs != null) {
@@ -527,5 +645,14 @@ function advanceSimulation(
     alerts: newAlerts.slice(-30),
     portionsSoldToday: Math.round(portionsSoldToday * 10) / 10,
     lastTickMs: Date.now(),
+    kpis: {
+      ...prev.kpis,
+      stockoutEvents,
+      shrinkageHistory,
+      forecastVsActual,
+    },
+    prevStockedout: stockedOutNow,
+    currentBucketActualLbs,
+    currentBucketStartMs,
   };
 }

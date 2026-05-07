@@ -3,6 +3,7 @@ import type {
   Spit,
   SpitState,
 } from "@/lib/chicken-spit/types";
+import { COOK_SPEED_MULTIPLIER } from "@/lib/chicken-spit/types";
 
 /**
  * Cook progress regions (vision-AI mock):
@@ -46,7 +47,9 @@ export function tickSpit(
   shavedLbsThisTick: number,
 ): Spit {
   if (!spit.active) return spit;
-  const cookDelta = simSecondsElapsed / config.cookTimeSecondsAt1x;
+  // Cook progresses at the configured speed multiplier (low/medium/high).
+  const speedMul = COOK_SPEED_MULTIPLIER[config.cookSpeed];
+  const cookDelta = (simSecondsElapsed * speedMul) / config.cookTimeSecondsAt1x;
   const cookProgress = Math.min(1.4, spit.cookProgress + cookDelta);
   const remainingLbs = Math.max(0, spit.remainingLbs - shavedLbsThisTick);
   const state = deriveSpitState(cookProgress);

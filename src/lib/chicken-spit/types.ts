@@ -1,24 +1,25 @@
 /**
- * Domain types for the chicken-spit demo (Forkcast / Tahini's PRD §3-§5).
+ * Domain types for the chicken-spit demo (Tahini's pilot deck v2).
  * All weights expressed in pounds (lbs). Times in seconds.
  */
 
-export type SpitId = "spit-a" | "spit-b";
+/** Open-ended id so we can have 1, 2, or 3 spits. Existing seeds use spit-a/spit-b/spit-c. */
+export type SpitId = string;
 
 export type SpitState =
-  | "loading" // freshly loaded, internal temp ramping
-  | "undercooked" // skin not yet golden — do NOT shave
-  | "ready" // optimal shave window
-  | "overcooking"; // dehydrating, urgent shave or pull
+  | "loading"
+  | "undercooked"
+  | "ready"
+  | "overcooking";
 
 export interface Spit {
   id: SpitId;
-  loadedAtMs: number; // simulated wall-clock ms
-  initialLbs: number; // weight at load
-  remainingLbs: number; // shrinks as we shave
-  cookProgress: number; // 0..1.4 (>1 = overcooking)
+  loadedAtMs: number;
+  initialLbs: number;
+  remainingLbs: number;
+  cookProgress: number;
   state: SpitState;
-  active: boolean; // is this spit currently mounted on the rotisserie
+  active: boolean;
 }
 
 export type GrillStatus = "idle" | "searing" | "overshoot";
@@ -26,7 +27,6 @@ export type GrillStatus = "idle" | "searing" | "overshoot";
 export interface GrillTimer {
   status: GrillStatus;
   startedAtMs: number | null;
-  /** elapsed seconds since startedAt, recomputed on tick */
   elapsedSeconds: number;
 }
 
@@ -38,7 +38,8 @@ export type AlertKind =
   | "grill-overshoot"
   | "steam-table-low"
   | "reprep-needed"
-  | "stockout-imminent";
+  | "stockout-imminent"
+  | "food-safety-violation";
 
 export interface SpitAlert {
   id: string;
@@ -48,34 +49,66 @@ export interface SpitAlert {
   createdAtMs: number;
 }
 
+export type CookSpeed = "low" | "medium" | "high";
+export type SpitScenario = "calm" | "lunch" | "dinner-rush";
+
+/** Cook-speed effect on cook progression: low cooks slowest, high fastest. */
+export const COOK_SPEED_MULTIPLIER: Record<CookSpeed, number> = {
+  low: 0.7,
+  medium: 1.0,
+  high: 1.35,
+};
+
 export interface ChickenSpitConfigV1 {
-  /** Demo simulation speed multiplier — 1×, 5×, 60× */
   simulationSpeed: 1 | 5 | 60;
-  /** Cook time required to reach `ready` state, real-world seconds at 1× */
   cookTimeSecondsAt1x: number;
-  /** Window before READY ends and OVERCOOKING begins, in cookProgress units */
   readyWindowWidth: number;
-  /** Minimum sear time on flat-top grill before plating (food safety) */
   grillMinSeconds: number;
-  /** Steam-table portion size in lbs */
   portionLbs: number;
-  /** Lead time to load + cook a fresh spit, real-world minutes */
   newSpitLeadMinutes: number;
+
+  /** Daily-setup config (deck §1: 1, 2, or 3 spits + cook speed) */
+  numSpits: 1 | 2 | 3;
+  cookSpeed: CookSpeed;
+  /** Whether last night's spit is on the rotisserie at open */
+  carryoverEnabled: boolean;
+  scenario: SpitScenario;
+}
+
+/** Rolling KPI counters tied to deck §V0 Pilot Metrics. */
+export interface SpitKpis {
+  /** Times the steam table emptied with open POS demand. */
+  stockoutEvents: number;
+  /** Number of "good" cuts (in ideal ready window). */
+  idealCuts: number;
+  /** Total cuts (ideal + late + early). */
+  totalCuts: number;
+  /** Pulls from grill that landed before 30s SOP — food safety violations. */
+  foodSafetyViolations: number;
+  /** Total grill plate-ups across the session. */
+  totalGrillPulls: number;
+  /** History of (forecast lbs, actual lbs sold) per recent 15-min window for accuracy KPI. */
+  forecastVsActual: Array<{ tMs: number; forecastLbs: number; actualLbs: number }>;
+  /** Per-cook-cycle shrinkage % history (initial − pulled finished) / initial × 100. */
+  shrinkageHistory: Array<{ tMs: number; spitId: SpitId; pct: number }>;
 }
 
 export interface ChickenSpitPersistedStateV1 {
   version: 1;
   config: ChickenSpitConfigV1;
   spits: Spit[];
-  /** Portions on the steam table, ready to plate */
   steamTablePortionsRemaining: number;
   steamTableCapacity: number;
-  /** Demand velocity, portions per minute (smoothed POS) */
   posVelocityPerMin: number;
   grillTimer: GrillTimer;
   alerts: SpitAlert[];
   acknowledgedAlertIds: string[];
-  /** Portions sold today, for KPIs */
   portionsSoldToday: number;
   lastTickMs: number | null;
+  kpis: SpitKpis;
+  /** Was the steam table empty on the previous tick? Used to debounce stockout events. */
+  prevStockedout: boolean;
+  /** Forecast bucket accumulator: actual lbs sold in the current 15-min wall window. */
+  currentBucketActualLbs: number;
+  currentBucketStartMs: number;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, Pause, Play, RotateCcw } from "lucide-react";
+import { Activity, Award, Pause, Play, RotateCcw } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,10 @@ import { FryerBayGrid } from "@/components/wings/fryer-bay-grid";
 import { HoldingBinCard } from "@/components/wings/holding-bin-card";
 import { OrderQueueCard } from "@/components/wings/order-queue-card";
 import { PredropCard } from "@/components/wings/predrop-card";
+import { RevenueCard } from "@/components/wings/revenue-card";
 import { ServiceTimeKpi } from "@/components/wings/service-time-kpi";
+import { VisionToast } from "@/components/wings/vision-toast";
+import { WingsKpiStrip } from "@/components/wings/wings-kpi-strip";
 import { tickBasket } from "@/lib/wings/basket-state";
 import { projectDemand } from "@/lib/wings/forecast";
 import { createInitialWingsState } from "@/lib/wings/mock-seed";
@@ -48,6 +51,11 @@ export function WingsView() {
   const [paused, setPaused] = useState(false);
   // continuous order-arrival accumulator across ticks
   const [orderRemainder, setOrderRemainder] = useState(0);
+  // Vision-AI toast trigger — bump key whenever a basket flips empty→frying
+  const [visionToast, setVisionToast] = useState<{ key: number; msg: string }>({
+    key: 0,
+    msg: "",
+  });
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -158,6 +166,7 @@ export function WingsView() {
 
   const onDropBasket = useCallback((basketId: string, lbs: number) => {
     setState((prev) => {
+      const basket = prev.baskets.find((b) => b.id === basketId);
       const baskets = prev.baskets.map<FryerBasket>((b) =>
         b.id === basketId
           ? {
@@ -174,6 +183,12 @@ export function WingsView() {
         timerPercent: Math.min(100, prev.adherence.timerPercent + 0.4),
         totalCookCycles: prev.adherence.totalCookCycles + 1,
       };
+      // Fire vision-AI confirmation toast
+      const idx = (basket?.index ?? 0) + 1;
+      setVisionToast((p) => ({
+        key: p.key + 1,
+        msg: `Vision AI confirmed B${idx} drop · 7:30 timer started`,
+      }));
       return { ...prev, baskets, adherence };
     });
   }, []);
@@ -234,6 +249,11 @@ export function WingsView() {
         const empty = prev.baskets.find((b) => b.status === "empty");
         if (!empty || lbs <= 0) return prev;
         const basketLbs = Math.min(prev.config.basketCapacityLbs, lbs);
+        // Vision AI toast for predrop
+        setVisionToast((p) => ({
+          key: p.key + 1,
+          msg: `Vision AI confirmed B${empty.index + 1} pre-drop · ${basketLbs} lb`,
+        }));
         const baskets = prev.baskets.map<FryerBasket>((b) =>
           b.id === empty.id
             ? {
@@ -298,6 +318,9 @@ export function WingsView() {
             <Kpi icon={<Activity className="size-3" />} label={`${state.posVelocityPerMin}/min`} />
             <Kpi label={`${Math.floor(state.wingsSoldToday)} wings sold`} />
             <Kpi label={`${(predrop.readyLbs + predrop.cookingLbs).toFixed(1)} lb in flight`} />
+            <span className="hidden items-center gap-1 rounded border border-violet-300/60 bg-violet-50/60 px-1.5 py-0.5 font-mono text-[10px] text-violet-800 dark:bg-violet-950/40 dark:text-violet-200 sm:inline-flex">
+              <Award className="size-3" /> Wingstop benchmark · 20+m → &lt;12m
+            </span>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -359,6 +382,19 @@ export function WingsView() {
         nowMs={nowMs}
       />
 
+      <WingsKpiStrip
+        kpis={state.kpis}
+        wingsSoldToday={Math.floor(state.wingsSoldToday)}
+        baselineWingsPerDay={Math.round(
+          state.kpis.baselineLbsPerHour * 12 * state.config.wingsPerLb,
+        )}
+      />
+
+      <RevenueCard
+        wingsSoldLbsToday={state.wingsSoldToday / state.config.wingsPerLb}
+        baselineLbsPerDay={state.kpis.baselineLbsPerHour * 12}
+      />
+
       <div className="grid gap-3 lg:grid-cols-3">
         <div className="space-y-3 lg:col-span-2">
           <FryerBayGrid
@@ -386,6 +422,8 @@ export function WingsView() {
           />
         </aside>
       </div>
+
+      <VisionToast triggerKey={visionToast.key} message={visionToast.msg} />
     </div>
   );
 }
@@ -482,6 +520,40 @@ function advanceWingsSimulation(
     (sum, o) => sum + o.weightLbs * config.wingsPerLb,
     0,
   );
+  const lbsSoldDelta = fulfilled.reduce((sum, o) => sum + o.weightLbs, 0);
+  const dineinFulfilled = fulfilled.filter((o) => o.channel === "dine-in").length;
+
+  // 7b. Forecast bucketing (5-min)
+  const FORECAST_BUCKET_MS = 5 * 60_000;
+  let currentBucketActualLbs = prev.currentBucketActualLbs + lbsSoldDelta;
+  let currentBucketStartMs = prev.currentBucketStartMs;
+  let forecastVsActual = prev.kpis.forecastVsActual;
+  if (nowMs - currentBucketStartMs >= FORECAST_BUCKET_MS) {
+    // Forecast for the closing bucket = posVelocity wings/min × 5 min ÷ wingsPerLb
+    const forecastLbs =
+      (prev.posVelocityPerMin * 5) / config.wingsPerLb;
+    forecastVsActual = [
+      ...forecastVsActual,
+      {
+        tMs: currentBucketStartMs,
+        forecastLbs: Math.round(forecastLbs * 10) / 10,
+        actualLbs: Math.round(currentBucketActualLbs * 10) / 10,
+      },
+    ].slice(-12);
+    currentBucketActualLbs = 0;
+    currentBucketStartMs = nowMs;
+  }
+
+  // 7c. Revenue lift (live computation vs hardcoded baseline lb/hr)
+  // We accumulate $ for each lb sold above the baseline pace.
+  const sessionMinutes =
+    prev.lastTickMs != null ? (nowMs - prev.lastTickMs) / 60_000 : 0;
+  const baselineLbsThisTick =
+    (prev.kpis.baselineLbsPerHour / 60) * sessionMinutes;
+  const liftLbsThisTick = Math.max(0, lbsSoldDelta - baselineLbsThisTick);
+  const DOLLARS_PER_LB = 33.99 / 2;
+  const revenueLiftDollars =
+    prev.kpis.revenueLiftDollars + liftLbsThisTick * DOLLARS_PER_LB;
 
   // 8. Coach events: predrop, game-ending, basket-overshoot, holding-decay, sla-tight
   const newCoach: CoachEvent[] = [...prev.coachEvents];
@@ -578,5 +650,13 @@ function advanceWingsSimulation(
     wingsSoldToday: prev.wingsSoldToday + wingsSoldDelta,
     coachEvents: newCoach.slice(-30),
     lastTickMs: nowMs,
+    kpis: {
+      ...prev.kpis,
+      dineinServed: prev.kpis.dineinServed + dineinFulfilled,
+      forecastVsActual,
+      revenueLiftDollars,
+    },
+    currentBucketActualLbs,
+    currentBucketStartMs,
   };
 }

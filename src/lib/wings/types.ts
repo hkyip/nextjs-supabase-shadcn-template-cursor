@@ -96,6 +96,18 @@ export interface WingsAdherence {
   totalCookCycles: number;
 }
 
+/** Pilot-deck KPIs (Service Speed / Throughput / Quality / Revenue / Planning Accuracy) */
+export interface WingsKpis {
+  /** Each dine-in served closes a partial table-turn; ~4 dine-in orders ≈ 1 turn. */
+  dineinServed: number;
+  /** Forecast vs. actual demand pairs from rolling 5-min buckets */
+  forecastVsActual: Array<{ tMs: number; forecastLbs: number; actualLbs: number }>;
+  /** Hardcoded baseline (lb sold per hour pre-AI). Deck implies modest 2-lb/day uplift. */
+  baselineLbsPerHour: number;
+  /** Realized revenue $ delta vs. baseline since session start */
+  revenueLiftDollars: number;
+}
+
 export interface WingsPersistedStateV1 {
   version: 1;
   config: WingsConfigV1;
@@ -115,6 +127,11 @@ export interface WingsPersistedStateV1 {
   /** total wings sold today */
   wingsSoldToday: number;
   lastTickMs: number | null;
+  /** deck KPIs */
+  kpis: WingsKpis;
+  /** rolling 5-min bucket accumulator for forecast vs. actual */
+  currentBucketActualLbs: number;
+  currentBucketStartMs: number;
 }
 
 export const CHANNEL_LABEL: Record<OrderChannel, string> = {
