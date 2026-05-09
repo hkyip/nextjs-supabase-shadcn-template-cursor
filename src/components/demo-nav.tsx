@@ -12,6 +12,7 @@ import {
   Leaf,
   LineChart,
   Settings,
+  Utensils,
 } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -21,6 +22,7 @@ const NAV_LINKS = [
   { href: "/production", label: "Production", icon: ChefHat },
   { href: "/fry-kitchen", label: "Fry kitchen", icon: LineChart },
   { href: "/chicken-spit", label: "Chicken spit", icon: Drumstick },
+  { href: "/tahini", label: "Tahini's", icon: Utensils },
   { href: "/st-louis-wings", label: "St. Louis Wings", icon: Flame },
   { href: "/salade-prep", label: "Salade prep", icon: Leaf },
   { href: "/camera", label: "Camera", icon: Camera },
@@ -32,20 +34,20 @@ export function DemoNav() {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex items-center gap-6">
-        <Link href="/" className="flex items-center gap-2">
+    <header className="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 flex items-center justify-between gap-3 border-b px-4 py-3 backdrop-blur">
+      <div className="flex min-w-0 flex-1 items-center gap-4">
+        <Link href="/" className="flex shrink-0 items-center gap-2">
           <LayoutDashboard className="size-5 text-emerald-600" />
           <span className="text-base font-bold tracking-tight">Forkcast</span>
         </Link>
 
-        <nav className="flex items-center gap-1">
+        <nav className="flex min-w-0 items-center gap-1 overflow-x-auto">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                "hover:bg-accent hover:text-accent-foreground flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                 pathname === link.href
                   ? "bg-accent text-accent-foreground"
                   : "text-muted-foreground",
@@ -60,7 +62,7 @@ export function DemoNav() {
       </div>
 
       <div className="flex items-center gap-3">
-        <span className="hidden text-xs text-muted-foreground sm:inline-flex">
+        <span className="text-muted-foreground hidden text-xs sm:inline-flex">
           Store #142 — Downtown
         </span>
         <ThemeToggle />
