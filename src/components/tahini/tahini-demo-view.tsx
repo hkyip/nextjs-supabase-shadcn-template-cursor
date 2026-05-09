@@ -1,12 +1,18 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   Camera,
   CheckCircle2,
   ChevronRight,
   Circle,
+  FastForward,
+  Pause,
+  Play,
+  RotateCcw,
+  TimerReset,
+  TrendingUp,
   UserRound,
 } from "lucide-react";
 
@@ -121,15 +127,578 @@ const GRILL_TONE_STYLES: Record<
   },
 };
 
+const BASE_TIME_MINUTES = 12 * 60 + 34;
+const CLOSE_TIME_MINUTES = 21 * 60;
+const PORTION_KG = 0.137;
+const RELOAD_LEAD_MINUTES = 60;
+const STOCKOUT_BUFFER_MINUTES = 15;
+const AUTO_STEP_MINUTES = 5;
+
+const BASE_SPIT_DEMAND_KG_PER_MIN: Record<string, number> = {
+  "SPIT 1": 0.032,
+  "SPIT 2": 0.022,
+  "SPIT 3": 0.014,
+};
+
+const BASE_LAST_SHAVE_MINUTES_AGO: Record<string, number> = {
+  "SPIT 1": 3,
+  "SPIT 2": 8,
+  "SPIT 3": 14,
+};
+
+type TahiniDemoState = {
+  elapsedMinutes: number;
+  demandMultiplier: number;
+  forecastKg: number;
+  prepConfirmed: boolean;
+  reloadStarted: boolean;
+  reloadStartedAtMinute: number | null;
+  manualShavesKg: Record<string, number>;
+  lastShaveAtMinute: Record<string, number>;
+  grillElapsedSeconds: number;
+  grillRunning: boolean;
+  grillBatches: number;
+  grillTotalSeconds: number;
+  grillViolations: number;
+  grillLateStreak: number;
+  grillLastUnsafe: boolean;
+};
+
+type LiveProjection = {
+  timeLabel: string;
+  demandLabel: string;
+  remainingKg: number;
+  shavedKg: number;
+  portions: number;
+  stockoutLabel: string;
+  stockoutDetail: string;
+  riskSpit: LiveSpit | null;
+  spits: LiveSpit[];
+};
+
+type GrillProjection = {
+  state: GrillState;
+  elapsedSeconds: number;
+  running: boolean;
+};
+
+const INITIAL_DEMO_STATE: TahiniDemoState = {
+  elapsedMinutes: 0,
+  demandMultiplier: 1,
+  forecastKg: TAHINI_PREP.today.cookKg,
+  prepConfirmed: false,
+  reloadStarted: false,
+  reloadStartedAtMinute: null,
+  manualShavesKg: {},
+  lastShaveAtMinute: {
+    "SPIT 1": -BASE_LAST_SHAVE_MINUTES_AGO["SPIT 1"],
+    "SPIT 2": -BASE_LAST_SHAVE_MINUTES_AGO["SPIT 2"],
+    "SPIT 3": -BASE_LAST_SHAVE_MINUTES_AGO["SPIT 3"],
+  },
+  grillElapsedSeconds: 0,
+  grillRunning: false,
+  grillBatches: 15,
+  grillTotalSeconds: Math.round(31.2 * 15),
+  grillViolations: 0,
+  grillLateStreak: 0,
+  grillLastUnsafe: false,
+};
+
+function advanceDemoClock(
+  state: TahiniDemoState,
+  minutes: number,
+): TahiniDemoState {
+  return {
+    ...state,
+    elapsedMinutes: clamp(
+      state.elapsedMinutes + minutes,
+      0,
+      CLOSE_TIME_MINUTES - BASE_TIME_MINUTES,
+    ),
+  };
+}
+
+function projectLive(state: TahiniDemoState): LiveProjection {
+  const spits = TAHINI_LIVE.spits.map((spit) => projectSpit(spit, state));
+  const remainingKg = sumBy(spits, (spit) => spit.remainingKg);
+  const shavedKg =
+    5.2 +
+    state.elapsedMinutes * totalDemandRate(state) +
+    sumBy(Object.values(state.manualShavesKg), (kg) => kg);
+  const riskSpit = getRiskSpit(spits, state);
+  const stockoutMinute =
+    riskSpit == null ? null : getProjectedEmptyMinutes(riskSpit, state);
+
+  return {
+    timeLabel: `${formatDateTime(BASE_TIME_MINUTES + state.elapsedMinutes)}${getDaypart(state.elapsedMinutes)}`,
+    demandLabel: formatDemand(state.demandMultiplier),
+    remainingKg,
+    shavedKg,
+    portions: Math.round(shavedKg / PORTION_KG),
+    stockoutLabel:
+      riskSpit && stockoutMinute != null
+        ? formatTimeOfDay(
+            BASE_TIME_MINUTES + state.elapsedMinutes + stockoutMinute,
+          )
+        : "--",
+    stockoutDetail:
+      riskSpit && stockoutMinute != null
+        ? `${riskSpit.id.toLowerCase()} - ${riskSpit.protein.toLowerCase()}`
+        : "no risk currently",
+    riskSpit,
+    spits,
+  };
+}
+
+function projectSpit(base: LiveSpit, state: TahiniDemoState): LiveSpit {
+  const baseRate = BASE_SPIT_DEMAND_KG_PER_MIN[base.id] ?? 0.015;
+  const autoShavedKg = state.elapsedMinutes * baseRate * state.demandMultiplier;
+  const manualShavedKg = state.manualShavesKg[base.id] ?? 0;
+  const remainingKg = Math.max(
+    0,
+    base.remainingKg - autoShavedKg - manualShavedKg,
+  );
+  const shavedKg = base.shavedKg + autoShavedKg + manualShavedKg;
+  const lastShaveAgo = Math.max(
+    0,
+    state.elapsedMinutes - (state.lastShaveAtMinute[base.id] ?? 0),
+  );
+  const emptyMinutes = getProjectedEmptyMinutes(
+    { ...base, remainingKg },
+    state,
+  );
+  const isChickenRisk =
+    base.protein === "Chicken" &&
+    emptyMinutes <= RELOAD_LEAD_MINUTES + STOCKOUT_BUFFER_MINUTES;
+  const outerColor = getOuterColor(lastShaveAgo, remainingKg);
+  const suggested = getSuggestedRotation(state.demandMultiplier, emptyMinutes);
+  const tone = getSpitTone({
+    isChickenRisk,
+    remainingKg,
+    outerColor,
+    baseTone: base.tone,
+  });
+
+  return {
+    ...base,
+    status: getSpitStatus(tone, outerColor),
+    tone,
+    remainingKg,
+    shavedKg,
+    outerColor,
+    lastShave: formatAgo(lastShaveAgo),
+    rotation: getCurrentRotation(state.demandMultiplier, base.rotation),
+    suggested,
+    note: getSpitNote(tone, state.demandMultiplier, emptyMinutes),
+    action: getSpitAction(tone, outerColor),
+  };
+}
+
+function toStockoutSpit(spit: LiveSpit, state: TahiniDemoState): StockoutSpit {
+  const emptyMinutes = getProjectedEmptyMinutes(spit, state);
+
+  return {
+    id: spit.id,
+    protein: spit.protein,
+    status: spit.status,
+    tone: spit.tone,
+    remainingKg: spit.remainingKg,
+    loadedKg: spit.loadedKg,
+    shavedKg: spit.shavedKg,
+    salesPace: formatDemand(state.demandMultiplier),
+    emptyEstimate: `~ ${formatTimeOfDay(BASE_TIME_MINUTES + state.elapsedMinutes + emptyMinutes)}`,
+    lastShave: spit.lastShave,
+  };
+}
+
+function projectGrill(
+  state: TahiniDemoState,
+  fallbackStateId: GrillStateId,
+): GrillProjection {
+  if (state.grillLastUnsafe) {
+    return {
+      state: makeGrillState("safety", state),
+      elapsedSeconds: state.grillElapsedSeconds,
+      running: state.grillRunning,
+    };
+  }
+
+  if (state.grillRunning) {
+    const id =
+      state.grillElapsedSeconds < 30
+        ? "cooking"
+        : state.grillElapsedSeconds <= 34
+          ? "ready"
+          : "over";
+
+    return {
+      state: makeGrillState(id, state),
+      elapsedSeconds: state.grillElapsedSeconds,
+      running: true,
+    };
+  }
+
+  return {
+    state: makeGrillState(fallbackStateId, state),
+    elapsedSeconds: state.grillElapsedSeconds,
+    running: false,
+  };
+}
+
+function makeGrillState(id: GrillStateId, state: TahiniDemoState): GrillState {
+  const base =
+    TAHINI_GRILL_STATES.find((grillState) => grillState.id === id) ??
+    TAHINI_GRILL_STATES[0];
+  const avgTime =
+    state.grillBatches === 0 ? 0 : state.grillTotalSeconds / state.grillBatches;
+  const remaining = Math.max(0, 30 - state.grillElapsedSeconds);
+  const over = Math.max(0, state.grillElapsedSeconds - 30);
+  const unsafe = id === "safety";
+
+  return {
+    ...base,
+    timeValue:
+      id === "idle"
+        ? "Ready"
+        : id === "cooking"
+          ? `${remaining}s`
+          : id === "ready"
+            ? "0s"
+            : unsafe
+              ? `${remaining || 11}s`
+              : `+${over}s`,
+    batches: String(state.grillBatches),
+    averageTime: `${avgTime.toFixed(1)}s`,
+    averageDetail: avgTime > 32 ? "target 30s - trending up" : "target 30.0s",
+    violations: String(state.grillViolations),
+    violationsDetail:
+      state.grillViolations > 0
+        ? `logged - ${formatTimeOfDay(BASE_TIME_MINUTES + state.elapsedMinutes)}`
+        : "none today",
+    note:
+      id === "over" && state.grillLateStreak >= 3
+        ? "Coaching note: late pulls are clustering. Remove at the chime to protect yield."
+        : base.note,
+  };
+}
+
+function getRiskSpit(spits: LiveSpit[], state: TahiniDemoState) {
+  const chickenSpits = spits.filter((spit) => spit.protein === "Chicken");
+  const [soonest] = chickenSpits.sort(
+    (a, b) =>
+      getProjectedEmptyMinutes(a, state) - getProjectedEmptyMinutes(b, state),
+  );
+
+  if (!soonest) return null;
+
+  return getProjectedEmptyMinutes(soonest, state) <=
+    RELOAD_LEAD_MINUTES + STOCKOUT_BUFFER_MINUTES
+    ? soonest
+    : null;
+}
+
+function getProjectedEmptyMinutes(
+  spit: Pick<LiveSpit, "id" | "remainingKg">,
+  state: TahiniDemoState,
+) {
+  const rate =
+    (BASE_SPIT_DEMAND_KG_PER_MIN[spit.id] ?? 0.015) * state.demandMultiplier;
+
+  if (rate <= 0) return Number.POSITIVE_INFINITY;
+
+  return Math.max(0, Math.round(spit.remainingKg / rate));
+}
+
+function getOuterColor(lastShaveAgo: number, remainingKg: number) {
+  if (remainingKg <= 0.2) return "Empty";
+  if (lastShaveAgo >= 13) return "Too dark";
+  if (lastShaveAgo >= 7) return "Ready (golden)";
+  if (lastShaveAgo >= 3) return "Building crust";
+  return "Fresh cut";
+}
+
+function getSpitTone({
+  isChickenRisk,
+  remainingKg,
+  outerColor,
+  baseTone,
+}: {
+  isChickenRisk: boolean;
+  remainingKg: number;
+  outerColor: string;
+  baseTone: SpitTone;
+}): SpitTone {
+  if (isChickenRisk || remainingKg <= 1.5) return "critical";
+  if (outerColor === "Too dark") return "warning";
+  if (outerColor === "Ready (golden)") return "ready";
+  return baseTone === "reload" ? "neutral" : "neutral";
+}
+
+function getSpitStatus(tone: SpitTone, outerColor: string) {
+  if (tone === "critical") return "Depleting fast";
+  if (tone === "warning") return "Overcooking - past window";
+  if (tone === "ready") return "Ready to shave";
+  if (outerColor === "Fresh cut") return "Recovering";
+  return "Live cam";
+}
+
+function getCurrentRotation(
+  demandMultiplier: number,
+  fallback: RotationSpeed,
+): RotationSpeed {
+  if (demandMultiplier >= 1.25) return "HIGH";
+  if (demandMultiplier <= 0.85) return "LOW";
+  return fallback;
+}
+
+function getSuggestedRotation(
+  demandMultiplier: number,
+  emptyMinutes: number,
+): RotationSpeed {
+  if (emptyMinutes <= RELOAD_LEAD_MINUTES + STOCKOUT_BUFFER_MINUTES) {
+    return "HIGH";
+  }
+  if (demandMultiplier >= 1.15) return "HIGH";
+  if (demandMultiplier <= 0.9) return "LOW";
+  return "MEDIUM";
+}
+
+function getSpitNote(
+  tone: SpitTone,
+  demandMultiplier: number,
+  emptyMinutes: number,
+) {
+  if (tone === "critical") {
+    return `Projected empty in ~${emptyMinutes} min - start reload now.`;
+  }
+  if (tone === "warning") return "Shave first - outer layer is darkening.";
+  if (tone === "ready") return "Ready band hit - shave now to protect yield.";
+  if (demandMultiplier >= 1.15) {
+    return "Demand is ahead of forecast - keep rotation high and watch reload timing.";
+  }
+  if (demandMultiplier <= 0.9) {
+    return "Demand is soft - slow rotation to preserve the outer layer.";
+  }
+  return "Demand pace matches volume - keep current speed.";
+}
+
+function getSpitAction(tone: SpitTone, outerColor: string) {
+  if (tone === "critical") return "Start reload";
+  if (tone === "warning" || tone === "ready") return "Shave now";
+  if (outerColor === "Fresh cut") return "Recover";
+  return "Wait - ready soon";
+}
+
+function totalDemandRate(state: TahiniDemoState) {
+  return (
+    sumBy(Object.values(BASE_SPIT_DEMAND_KG_PER_MIN), (rate) => rate) *
+    state.demandMultiplier
+  );
+}
+
+function sumBy<T>(items: T[], getValue: (item: T) => number) {
+  return items.reduce((total, item) => total + getValue(item), 0);
+}
+
+function formatDateTime(totalMinutes: number) {
+  return `Tuesday, May 12 - ${formatTimeOfDay(totalMinutes)}`;
+}
+
+function formatTimeOfDay(totalMinutes: number) {
+  const normalized =
+    ((Math.round(totalMinutes) % (24 * 60)) + 24 * 60) % (24 * 60);
+  const hours24 = Math.floor(normalized / 60);
+  const minutes = normalized % 60;
+  const suffix = hours24 >= 12 ? "PM" : "AM";
+  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+
+  return `${hours12}:${minutes.toString().padStart(2, "0")} ${suffix}`;
+}
+
+function getDaypart(elapsedMinutes: number) {
+  if (elapsedMinutes < 90) return " - LUNCH RUSH";
+  if (elapsedMinutes < 240) return " - AFTERNOON";
+  return " - DINNER BUILD";
+}
+
+function formatDemand(multiplier: number) {
+  const delta = Math.round((multiplier - 1) * 100);
+  if (delta === 0) return "on forecast";
+  return `${delta > 0 ? "+" : ""}${delta}% vs forecast`;
+}
+
+function formatAgo(minutes: number) {
+  const rounded = Math.max(0, Math.round(minutes));
+  if (rounded === 0) return "just now";
+  return `${rounded} min ago`;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
 export function TahiniDemoView() {
   const [activeScreen, setActiveScreen] = useState<TahiniScreenId>("prep");
   const [activeGrillState, setActiveGrillState] =
     useState<GrillStateId>("cooking");
+  const [playing, setPlaying] = useState(false);
+  const [demo, setDemo] = useState<TahiniDemoState>(INITIAL_DEMO_STATE);
 
   const selectedScreen = useMemo(
     () => TAHINI_SCREENS.find((screen) => screen.id === activeScreen),
     [activeScreen],
   );
+  const liveProjection = useMemo(() => projectLive(demo), [demo]);
+  const grillProjection = useMemo(
+    () => projectGrill(demo, activeGrillState),
+    [activeGrillState, demo],
+  );
+
+  useEffect(() => {
+    if (!playing) return;
+
+    const id = window.setInterval(() => {
+      setDemo((prev) => advanceDemoClock(prev, AUTO_STEP_MINUTES));
+    }, 1000);
+
+    return () => window.clearInterval(id);
+  }, [playing]);
+
+  useEffect(() => {
+    if (!demo.grillRunning) return;
+
+    const id = window.setInterval(() => {
+      setDemo((prev) => ({
+        ...prev,
+        grillElapsedSeconds: Math.min(prev.grillElapsedSeconds + 1, 75),
+      }));
+    }, 1000);
+
+    return () => window.clearInterval(id);
+  }, [demo.grillRunning]);
+
+  function advanceMinutes(minutes: number) {
+    setDemo((prev) => advanceDemoClock(prev, minutes));
+  }
+
+  function resetDemo() {
+    setPlaying(false);
+    setActiveScreen("prep");
+    setActiveGrillState("cooking");
+    setDemo(INITIAL_DEMO_STATE);
+  }
+
+  function setDemandMultiplier(next: number) {
+    setDemo((prev) => ({
+      ...prev,
+      demandMultiplier: clamp(next, 0.7, 1.5),
+    }));
+  }
+
+  function shaveSpit(spitId: string) {
+    setDemo((prev) => ({
+      ...prev,
+      manualShavesKg: {
+        ...prev.manualShavesKg,
+        [spitId]: (prev.manualShavesKg[spitId] ?? 0) + 0.35,
+      },
+      lastShaveAtMinute: {
+        ...prev.lastShaveAtMinute,
+        [spitId]: prev.elapsedMinutes,
+      },
+    }));
+  }
+
+  function startReload() {
+    setActiveScreen("stockout");
+    setDemo((prev) => ({
+      ...prev,
+      reloadStarted: true,
+      reloadStartedAtMinute: prev.reloadStartedAtMinute ?? prev.elapsedMinutes,
+    }));
+  }
+
+  function confirmPrep() {
+    setActiveScreen("live");
+    setDemo((prev) => ({
+      ...prev,
+      prepConfirmed: true,
+      elapsedMinutes: Math.max(prev.elapsedMinutes, 0),
+    }));
+  }
+
+  function adjustForecast(deltaKg: number) {
+    setDemo((prev) => ({
+      ...prev,
+      forecastKg: clamp(prev.forecastKg + deltaKg, 16, 26),
+    }));
+  }
+
+  function chooseGrillState(stateId: GrillStateId) {
+    setActiveGrillState(stateId);
+    setDemo((prev) => ({
+      ...prev,
+      grillElapsedSeconds:
+        stateId === "idle"
+          ? 0
+          : stateId === "cooking"
+            ? 17
+            : stateId === "ready"
+              ? 30
+              : stateId === "over"
+                ? 38
+                : 19,
+      grillRunning: stateId === "cooking",
+      grillLastUnsafe: stateId === "safety",
+    }));
+  }
+
+  function startGrillBatch() {
+    setActiveGrillState("cooking");
+    setDemo((prev) => ({
+      ...prev,
+      grillElapsedSeconds: 0,
+      grillRunning: true,
+      grillLastUnsafe: false,
+    }));
+  }
+
+  function advanceGrill(seconds: number) {
+    setDemo((prev) => ({
+      ...prev,
+      grillElapsedSeconds: clamp(prev.grillElapsedSeconds + seconds, 0, 75),
+      grillRunning: true,
+      grillLastUnsafe: false,
+    }));
+  }
+
+  function removeGrillBatch() {
+    setDemo((prev) => {
+      if (prev.grillLastUnsafe && !prev.grillRunning) {
+        return {
+          ...prev,
+          grillElapsedSeconds: 0,
+          grillLastUnsafe: false,
+        };
+      }
+
+      const elapsedSeconds = prev.grillElapsedSeconds;
+      const unsafe = elapsedSeconds < 30;
+      const late = elapsedSeconds > 35;
+
+      return {
+        ...prev,
+        grillRunning: false,
+        grillBatches: prev.grillBatches + 1,
+        grillTotalSeconds: prev.grillTotalSeconds + elapsedSeconds,
+        grillViolations: prev.grillViolations + (unsafe ? 1 : 0),
+        grillLateStreak: unsafe ? 0 : late ? prev.grillLateStreak + 1 : 0,
+        grillLastUnsafe: unsafe,
+        grillElapsedSeconds: unsafe ? elapsedSeconds : 0,
+      };
+    });
+    setActiveGrillState("idle");
+  }
 
   return (
     <section className="bg-background text-foreground min-h-[calc(100vh-96px)]">
@@ -185,13 +754,46 @@ export function TahiniDemoView() {
           />
         ) : null}
 
-        {activeScreen === "prep" ? <MorningPrepScreen /> : null}
-        {activeScreen === "live" ? <LiveCookingScreen /> : null}
-        {activeScreen === "stockout" ? <StockoutScreen /> : null}
+        <SimulationControls
+          demo={demo}
+          projection={liveProjection}
+          playing={playing}
+          onPlayingChange={setPlaying}
+          onAdvance={advanceMinutes}
+          onDemandChange={setDemandMultiplier}
+          onReset={resetDemo}
+        />
+
+        {activeScreen === "prep" ? (
+          <MorningPrepScreen
+            demo={demo}
+            onAdjustForecast={adjustForecast}
+            onConfirm={confirmPrep}
+          />
+        ) : null}
+        {activeScreen === "live" ? (
+          <LiveCookingScreen
+            projection={liveProjection}
+            onShave={shaveSpit}
+            onStartReload={startReload}
+          />
+        ) : null}
+        {activeScreen === "stockout" ? (
+          <StockoutScreen
+            demo={demo}
+            projection={liveProjection}
+            onStartReload={startReload}
+            onShave={shaveSpit}
+          />
+        ) : null}
         {activeScreen === "grill" ? (
           <GrillScreen
+            projection={grillProjection}
             activeState={activeGrillState}
-            onStateChange={setActiveGrillState}
+            onStateChange={chooseGrillState}
+            onStartBatch={startGrillBatch}
+            onAdvance={advanceGrill}
+            onRemove={removeGrillBatch}
           />
         ) : null}
 
@@ -244,10 +846,129 @@ function ScreenIntro({
   );
 }
 
-function MorningPrepScreen() {
+function SimulationControls({
+  demo,
+  projection,
+  playing,
+  onPlayingChange,
+  onAdvance,
+  onDemandChange,
+  onReset,
+}: {
+  demo: TahiniDemoState;
+  projection: LiveProjection;
+  playing: boolean;
+  onPlayingChange: (playing: boolean) => void;
+  onAdvance: (minutes: number) => void;
+  onDemandChange: (value: number) => void;
+  onReset: () => void;
+}) {
+  return (
+    <div className="border-border bg-card grid gap-4 border p-4 shadow-sm xl:grid-cols-[1fr_320px] xl:items-center">
+      <div className="grid gap-3 md:grid-cols-3">
+        <div>
+          <SectionLabel>Demo clock</SectionLabel>
+          <p className="text-2xl font-bold">{projection.timeLabel}</p>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {demo.elapsedMinutes} min elapsed
+          </p>
+        </div>
+        <div>
+          <SectionLabel>Live demand</SectionLabel>
+          <p className="flex items-center gap-2 text-2xl font-bold">
+            <TrendingUp className="size-5 text-orange-600 dark:text-orange-300" />
+            {projection.demandLabel}
+          </p>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {projection.portions} portions shaved
+          </p>
+        </div>
+        <div>
+          <SectionLabel>Next risk</SectionLabel>
+          <p className="text-2xl font-bold">{projection.stockoutLabel}</p>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {projection.stockoutDetail}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onPlayingChange(!playing)}
+          >
+            {playing ? (
+              <Pause className="size-4" />
+            ) : (
+              <Play className="size-4" />
+            )}
+            {playing ? "Pause" : "Run"}
+          </Button>
+          {[5, 15, 45].map((minutes) => (
+            <Button
+              key={minutes}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onAdvance(minutes)}
+            >
+              <FastForward className="size-4" />+{minutes}m
+            </Button>
+          ))}
+          <Button type="button" variant="ghost" size="sm" onClick={onReset}>
+            <RotateCcw className="size-4" />
+            Reset
+          </Button>
+        </div>
+
+        <label className="grid gap-2 text-sm font-medium">
+          <span className="text-muted-foreground flex items-center justify-between">
+            <span>Demand pace</span>
+            <span>{Math.round(demo.demandMultiplier * 100)}%</span>
+          </span>
+          <input
+            type="range"
+            min="70"
+            max="150"
+            step="5"
+            value={Math.round(demo.demandMultiplier * 100)}
+            onChange={(event) =>
+              onDemandChange(Number(event.currentTarget.value) / 100)
+            }
+            className="accent-foreground w-full"
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function MorningPrepScreen({
+  demo,
+  onAdjustForecast,
+  onConfirm,
+}: {
+  demo: TahiniDemoState;
+  onAdjustForecast: (deltaKg: number) => void;
+  onConfirm: () => void;
+}) {
+  const scale = demo.forecastKg / TAHINI_PREP.today.cookKg;
+  const chickenKg = TAHINI_PREP.today.chickenKg * scale;
+  const gyroKg = TAHINI_PREP.today.gyroKg * scale;
+  const loads = TAHINI_PREP.loads.map((load) => ({
+    ...load,
+    kg: load.kg * scale,
+  }));
+
   return (
     <TabletFrame>
-      <DeviceHeader store={TAHINI_PREP.store} time={TAHINI_PREP.time} />
+      <DeviceHeader
+        store={TAHINI_PREP.store}
+        time={`${TAHINI_PREP.time}${demo.prepConfirmed ? " - CONFIRMED" : ""}`}
+      />
 
       <div className="mt-6">
         <SectionLabel>Today</SectionLabel>
@@ -255,11 +976,10 @@ function MorningPrepScreen() {
           <div className="border-foreground bg-card border-2 p-6">
             <p className="text-muted-foreground text-lg">Cook</p>
             <p className="text-foreground mt-4 text-7xl font-bold tracking-tight">
-              {TAHINI_PREP.today.cookKg.toFixed(1)} kg
+              {demo.forecastKg.toFixed(1)} kg
             </p>
             <p className="text-muted-foreground mt-3 text-sm">
-              {TAHINI_PREP.today.chickenKg.toFixed(1)} kg chicken -{" "}
-              {TAHINI_PREP.today.gyroKg.toFixed(1)} kg gyro
+              {chickenKg.toFixed(1)} kg chicken - {gyroKg.toFixed(1)} kg gyro
             </p>
           </div>
 
@@ -285,18 +1005,37 @@ function MorningPrepScreen() {
       <div className="mt-6">
         <SectionLabel>Load onto spits</SectionLabel>
         <div className="grid gap-4 lg:grid-cols-3">
-          {TAHINI_PREP.loads.map((load) => (
+          {loads.map((load) => (
             <PrepLoadCard key={load.id} load={load} />
           ))}
         </div>
       </div>
 
       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Button variant="outline" className="border-border bg-card">
-          Adjust forecast
-        </Button>
-        <Button className="bg-foreground text-background hover:bg-foreground/90">
-          Confirm &amp; start prep
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="border-border bg-card"
+            onClick={() => onAdjustForecast(-1)}
+          >
+            -1 kg
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-border bg-card"
+            onClick={() => onAdjustForecast(1)}
+          >
+            +1 kg
+          </Button>
+        </div>
+        <Button
+          type="button"
+          className="bg-foreground text-background hover:bg-foreground/90"
+          onClick={onConfirm}
+        >
+          {demo.prepConfirmed ? "Confirmed" : "Confirm & start prep"}
           <ChevronRight className="size-4" />
         </Button>
       </div>
@@ -304,35 +1043,98 @@ function MorningPrepScreen() {
   );
 }
 
-function LiveCookingScreen() {
+function LiveCookingScreen({
+  projection,
+  onShave,
+  onStartReload,
+}: {
+  projection: LiveProjection;
+  onShave: (spitId: string) => void;
+  onStartReload: () => void;
+}) {
   return (
     <TabletFrame>
-      <DeviceHeader store={TAHINI_LIVE.store} time={TAHINI_LIVE.time} />
-      <KpiStrip items={TAHINI_LIVE.kpis} />
+      <DeviceHeader store={TAHINI_LIVE.store} time={projection.timeLabel} />
+      <KpiStrip
+        items={[
+          {
+            label: "Remaining on spits",
+            value: `${projection.remainingKg.toFixed(1)} kg`,
+            detail: "across 3 spits",
+          },
+          {
+            label: "Shaved today",
+            value: `${projection.shavedKg.toFixed(1)} kg`,
+            detail: `~ ${projection.portions} portions - ${projection.demandLabel}`,
+          },
+          {
+            label: "Est. stockout",
+            value: projection.stockoutLabel,
+            detail: projection.stockoutDetail,
+          },
+        ]}
+        highlightLast={projection.riskSpit != null}
+      />
       <SectionLabel className="mt-6">Spits - live</SectionLabel>
       <div className="grid gap-4 xl:grid-cols-3">
-        {TAHINI_LIVE.spits.map((spit) => (
-          <LiveSpitCard key={spit.id} spit={spit} />
+        {projection.spits.map((spit) => (
+          <LiveSpitCard
+            key={spit.id}
+            spit={spit}
+            onAction={() =>
+              spit.tone === "critical" ? onStartReload() : onShave(spit.id)
+            }
+          />
         ))}
       </div>
     </TabletFrame>
   );
 }
 
-function StockoutScreen() {
+function StockoutScreen({
+  demo,
+  projection,
+  onStartReload,
+  onShave,
+}: {
+  demo: TahiniDemoState;
+  projection: LiveProjection;
+  onStartReload: () => void;
+  onShave: (spitId: string) => void;
+}) {
+  const fallbackRisk =
+    projection.spits
+      .filter((spit) => spit.protein === "Chicken")
+      .sort((a, b) => a.remainingKg - b.remainingKg)[0] ?? projection.spits[0];
+  const riskSpit = projection.riskSpit ?? fallbackRisk;
+  const stockoutSpit = toStockoutSpit(riskSpit, demo);
+  const remainingSpits = projection.spits
+    .filter((spit) => spit.id !== riskSpit.id)
+    .map((spit) => toStockoutSpit(spit, demo));
+  const projectedEmpty = formatTimeOfDay(
+    BASE_TIME_MINUTES +
+      demo.elapsedMinutes +
+      getProjectedEmptyMinutes(riskSpit, demo),
+  );
+
   return (
     <TabletFrame>
-      <DeviceHeader store={TAHINI_STOCKOUT.store} time={TAHINI_STOCKOUT.time} />
+      <DeviceHeader store={TAHINI_STOCKOUT.store} time={projection.timeLabel} />
 
       <div className="border-foreground bg-card mt-5 flex flex-col gap-3 border-2 p-4 md:flex-row md:items-center md:justify-between">
         <div className="flex gap-4">
           <AlertTriangle className="mt-1 size-5 shrink-0 text-orange-600 dark:text-orange-300" />
           <div>
             <p className="text-xs font-semibold tracking-[0.24em] text-orange-700 uppercase dark:text-orange-200">
-              {TAHINI_STOCKOUT.alert.label}
+              {projection.riskSpit
+                ? TAHINI_STOCKOUT.alert.label
+                : "Reload monitor - chicken"}
             </p>
             <p className="text-muted-foreground mt-2 max-w-2xl text-base font-semibold">
-              {TAHINI_STOCKOUT.alert.message}
+              {riskSpit.id} projected empty at ~{projectedEmpty}.{" "}
+              {projection.riskSpit
+                ? "Start a new cone now to stay inside the buffer."
+                : "Demand has not crossed the buffer yet."}
             </p>
           </div>
         </div>
@@ -340,21 +1142,51 @@ function StockoutScreen() {
           <Button variant="ghost" className="text-muted-foreground">
             Snooze 15m
           </Button>
-          <Button className="bg-foreground text-background hover:bg-foreground/90">
-            Start reload
+          <Button
+            type="button"
+            className="bg-foreground text-background hover:bg-foreground/90"
+            onClick={onStartReload}
+          >
+            {demo.reloadStarted ? "Reload cooking" : "Start reload"}
             <ChevronRight className="size-4" />
           </Button>
         </div>
       </div>
 
-      <KpiStrip items={TAHINI_STOCKOUT.kpis} highlightLast />
+      <KpiStrip
+        items={[
+          {
+            label: "Remaining on spits",
+            value: `${projection.remainingKg.toFixed(1)} kg`,
+            detail: "across 3 spits",
+          },
+          {
+            label: "Shaved today",
+            value: `${projection.shavedKg.toFixed(1)} kg`,
+            detail: `~ ${projection.portions} portions - ${projection.demandLabel}`,
+          },
+          {
+            label: "Est. stockout",
+            value: projectedEmpty,
+            detail: `${riskSpit.id.toLowerCase()} - ${riskSpit.protein.toLowerCase()}`,
+          },
+        ]}
+        highlightLast
+      />
 
       <SectionLabel className="mt-6">Spits - live</SectionLabel>
       <div className="grid gap-4 xl:grid-cols-[minmax(220px,0.9fr)_minmax(240px,1fr)_minmax(220px,0.9fr)_minmax(220px,0.9fr)]">
-        <StockoutSpitCard spit={TAHINI_STOCKOUT.depleting} />
-        <ReloadCard />
-        {TAHINI_STOCKOUT.remaining.map((spit) => (
-          <StockoutSpitCard key={spit.id} spit={spit} />
+        <StockoutSpitCard
+          spit={stockoutSpit}
+          onShave={() => onShave(riskSpit.id)}
+        />
+        <ReloadCard demo={demo} onStartReload={onStartReload} />
+        {remainingSpits.map((spit) => (
+          <StockoutSpitCard
+            key={spit.id}
+            spit={spit}
+            onShave={() => onShave(spit.id)}
+          />
         ))}
       </div>
     </TabletFrame>
@@ -362,19 +1194,51 @@ function StockoutScreen() {
 }
 
 function GrillScreen({
+  projection,
   activeState,
   onStateChange,
+  onStartBatch,
+  onAdvance,
+  onRemove,
 }: {
+  projection: GrillProjection;
   activeState: GrillStateId;
   onStateChange: (state: GrillStateId) => void;
+  onStartBatch: () => void;
+  onAdvance: (seconds: number) => void;
+  onRemove: () => void;
 }) {
-  const selected =
-    TAHINI_GRILL_STATES.find((state) => state.id === activeState) ??
-    TAHINI_GRILL_STATES[0];
-
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <GrillDevice state={selected} />
+      <div className="grid gap-3">
+        <GrillDevice state={projection.state} />
+        <div className="border-border bg-card flex flex-wrap items-center gap-2 border p-3">
+          <Button type="button" onClick={onStartBatch}>
+            <Play className="size-4" />
+            Start batch
+          </Button>
+          <Button type="button" variant="outline" onClick={() => onAdvance(5)}>
+            <TimerReset className="size-4" />
+            +5s
+          </Button>
+          <Button
+            type="button"
+            variant={
+              projection.state.tone === "safety" ? "destructive" : "outline"
+            }
+            onClick={onRemove}
+          >
+            {projection.state.tone === "safety"
+              ? "Log corrective"
+              : "Remove now"}
+          </Button>
+          <span className="text-muted-foreground ml-auto text-sm">
+            {projection.running
+              ? `${projection.elapsedSeconds}s on grill`
+              : "timer idle"}
+          </span>
+        </div>
+      </div>
 
       <div className="flex flex-col gap-3">
         <div className="border-border bg-card border p-3">
@@ -556,7 +1420,13 @@ function KpiStrip({
   );
 }
 
-function LiveSpitCard({ spit }: { spit: LiveSpit }) {
+function LiveSpitCard({
+  spit,
+  onAction,
+}: {
+  spit: LiveSpit;
+  onAction: () => void;
+}) {
   const styles = TONE_STYLES[spit.tone];
 
   return (
@@ -604,6 +1474,7 @@ function LiveSpitCard({ spit }: { spit: LiveSpit }) {
           "mt-auto min-h-12 border px-4 py-3 text-sm font-bold tracking-[0.16em] uppercase",
           styles.action,
         )}
+        onClick={onAction}
       >
         {spit.action}
       </button>
@@ -611,7 +1482,13 @@ function LiveSpitCard({ spit }: { spit: LiveSpit }) {
   );
 }
 
-function StockoutSpitCard({ spit }: { spit: StockoutSpit }) {
+function StockoutSpitCard({
+  spit,
+  onShave,
+}: {
+  spit: StockoutSpit;
+  onShave: () => void;
+}) {
   const styles = TONE_STYLES[spit.tone];
 
   return (
@@ -646,12 +1523,42 @@ function StockoutSpitCard({ spit }: { spit: StockoutSpit }) {
         tone={spit.tone}
       />
       <MetricRow label="Last shave" value={spit.lastShave} />
+      <Button
+        type="button"
+        variant={spit.tone === "critical" ? "default" : "outline"}
+        className={cn(
+          "mt-auto",
+          spit.tone === "critical"
+            ? "dark:text-background bg-orange-600 text-white hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-400"
+            : "border-border bg-card",
+        )}
+        onClick={onShave}
+      >
+        Shave 0.35 kg
+      </Button>
     </div>
   );
 }
 
-function ReloadCard() {
+function ReloadCard({
+  demo,
+  onStartReload,
+}: {
+  demo: TahiniDemoState;
+  onStartReload: () => void;
+}) {
   const reload = TAHINI_STOCKOUT.reload;
+  const elapsed =
+    demo.reloadStartedAtMinute == null
+      ? 0
+      : Math.max(0, demo.elapsedMinutes - demo.reloadStartedAtMinute);
+  const progress = clamp(elapsed / RELOAD_LEAD_MINUTES, 0, 1);
+  const readyAt =
+    demo.reloadStartedAtMinute == null
+      ? null
+      : formatTimeOfDay(
+          BASE_TIME_MINUTES + demo.reloadStartedAtMinute + RELOAD_LEAD_MINUTES,
+        );
 
   return (
     <div className="border-foreground/70 bg-card flex min-h-[500px] flex-col border-2 border-dashed p-4 text-center">
@@ -680,14 +1587,22 @@ function ReloadCard() {
 
       <div className="border-border mt-5 border-y py-4">
         <p className="text-muted-foreground/70 text-xs font-semibold tracking-[0.2em] uppercase">
-          Start cooking by
+          {demo.reloadStarted ? "Cooking progress" : "Start cooking by"}
         </p>
         <p className="text-muted-foreground mt-1 text-2xl font-bold">
-          {reload.startCookingBy}
+          {demo.reloadStarted
+            ? `${Math.round(progress * 100)}%`
+            : reload.startCookingBy}
         </p>
         <p className="text-muted-foreground/70 mt-1 text-sm">
-          {reload.readyBy}
+          {readyAt ? `ready by ${readyAt}` : reload.readyBy}
         </p>
+        <div className="bg-muted mt-3 h-2 overflow-hidden">
+          <div
+            className="h-full bg-orange-500 transition-all"
+            style={{ width: `${Math.round(progress * 100)}%` }}
+          />
+        </div>
       </div>
 
       <p className="border-border text-muted-foreground mt-5 border p-3 text-sm italic">
@@ -698,8 +1613,12 @@ function ReloadCard() {
         <Button variant="outline" className="border-border bg-card">
           Adjust
         </Button>
-        <Button className="bg-foreground text-background hover:bg-foreground/90">
-          Start reload
+        <Button
+          type="button"
+          className="bg-foreground text-background hover:bg-foreground/90"
+          onClick={onStartReload}
+        >
+          {demo.reloadStarted ? "Cooking" : "Start reload"}
         </Button>
       </div>
     </div>
@@ -1075,7 +1994,7 @@ function speedToIndex(speed: RotationSpeed) {
 
 function OpenQuestions() {
   return (
-    <div className="border-border bg-card border p-5">
+    <div className="border-border bg-card hidden border p-5">
       <SectionLabel>
         Open questions / config decisions to confirm with Tahini&apos;s
       </SectionLabel>
