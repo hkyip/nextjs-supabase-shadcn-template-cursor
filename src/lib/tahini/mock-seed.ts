@@ -367,7 +367,7 @@ export const TAHINI_OPEN_QUESTIONS = [
   "Color thresholds - tune ready versus too dark per protein and brand.",
   "Stagger spit start times - evaluate lunch and dinner peak freshness.",
   "Coaching threshold - current pattern is 4 of last 5 late removals.",
-  "Multi-spit stockout - confirm layout behavior when 4+ cards appear.",
+  "Reload handoff - validate how the side prep cone replaces Spit 1 in the live camera feed.",
 ];
 
 export const TAHINI_GRILL_ICON_BY_TONE = {

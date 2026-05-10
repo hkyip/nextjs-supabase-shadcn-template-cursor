@@ -19,7 +19,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  TAHINI_GRILL_ICON_BY_TONE,
   TAHINI_GRILL_STATES,
   TAHINI_LIVE,
   TAHINI_OPEN_QUESTIONS,
@@ -311,10 +310,41 @@ function toStockoutSpit(spit: LiveSpit, state: TahiniDemoState): StockoutSpit {
   };
 }
 
-function projectGrill(
+function makeReloadedStockoutSpit(
+  spit: LiveSpit,
   state: TahiniDemoState,
-  fallbackStateId: GrillStateId,
-): GrillProjection {
+): StockoutSpit {
+  const minutesSinceSwap = getMinutesSinceSpitEmptied(spit, state);
+  const shavedKg = minutesSinceSwap * getSpitDemandRate(spit.id, state);
+  const remainingKg = Math.max(0, TAHINI_STOCKOUT.reload.loadKg - shavedKg);
+  const emptyMinutes = getProjectedEmptyMinutes(
+    { id: spit.id, remainingKg },
+    state,
+  );
+
+  return {
+    id: spit.id,
+    protein: spit.protein,
+    status: "New cone cooking",
+    tone: "neutral",
+    remainingKg,
+    loadedKg: TAHINI_STOCKOUT.reload.loadKg,
+    shavedKg: Math.min(TAHINI_STOCKOUT.reload.loadKg, shavedKg),
+    salesPace: `${formatDemand(state.demandMultiplier)} - reloaded`,
+    emptyEstimate:
+      remainingKg > 0
+        ? `~ ${formatTimeOfDay(BASE_TIME_MINUTES + state.elapsedMinutes + emptyMinutes)}`
+        : "empty",
+    lastShave:
+      minutesSinceSwap === 0 ? "new cone" : formatAgo(minutesSinceSwap),
+  };
+}
+
+function isReloadComplete(spit: LiveSpit, state: TahiniDemoState) {
+  return state.reloadStarted && getRawRemainingKg(spit, state) <= 0;
+}
+
+function projectGrill(state: TahiniDemoState): GrillProjection {
   if (state.grillLastUnsafe) {
     return {
       state: makeGrillState("safety", state),
@@ -327,7 +357,7 @@ function projectGrill(
     const id =
       state.grillElapsedSeconds < 30
         ? "cooking"
-        : state.grillElapsedSeconds <= 34
+        : state.grillElapsedSeconds === 30
           ? "ready"
           : "over";
 
@@ -339,7 +369,7 @@ function projectGrill(
   }
 
   return {
-    state: makeGrillState(fallbackStateId, state),
+    state: makeGrillState("idle", state),
     elapsedSeconds: state.grillElapsedSeconds,
     running: false,
   };
@@ -401,12 +431,34 @@ function getProjectedEmptyMinutes(
   spit: Pick<LiveSpit, "id" | "remainingKg">,
   state: TahiniDemoState,
 ) {
-  const rate =
-    (BASE_SPIT_DEMAND_KG_PER_MIN[spit.id] ?? 0.015) * state.demandMultiplier;
+  const rate = getSpitDemandRate(spit.id, state);
 
   if (rate <= 0) return Number.POSITIVE_INFINITY;
 
   return Math.max(0, Math.round(spit.remainingKg / rate));
+}
+
+function getRawRemainingKg(spit: LiveSpit, state: TahiniDemoState) {
+  return (
+    spit.remainingKg -
+    state.elapsedMinutes * getSpitDemandRate(spit.id, state) -
+    (state.manualShavesKg[spit.id] ?? 0)
+  );
+}
+
+function getMinutesSinceSpitEmptied(spit: LiveSpit, state: TahiniDemoState) {
+  const rawRemainingKg = getRawRemainingKg(spit, state);
+  const rate = getSpitDemandRate(spit.id, state);
+
+  if (rawRemainingKg >= 0 || rate <= 0) return 0;
+
+  return Math.round(Math.abs(rawRemainingKg) / rate);
+}
+
+function getSpitDemandRate(spitId: string, state: TahiniDemoState) {
+  return (
+    (BASE_SPIT_DEMAND_KG_PER_MIN[spitId] ?? 0.015) * state.demandMultiplier
+  );
 }
 
 function getOuterColor(lastShaveAgo: number, remainingKg: number) {
@@ -539,8 +591,6 @@ function clamp(value: number, min: number, max: number) {
 
 export function TahiniDemoView() {
   const [activeScreen, setActiveScreen] = useState<TahiniScreenId>("prep");
-  const [activeGrillState, setActiveGrillState] =
-    useState<GrillStateId>("cooking");
   const [playing, setPlaying] = useState(false);
   const [demo, setDemo] = useState<TahiniDemoState>(INITIAL_DEMO_STATE);
 
@@ -549,10 +599,7 @@ export function TahiniDemoView() {
     [activeScreen],
   );
   const liveProjection = useMemo(() => projectLive(demo), [demo]);
-  const grillProjection = useMemo(
-    () => projectGrill(demo, activeGrillState),
-    [activeGrillState, demo],
-  );
+  const grillProjection = useMemo(() => projectGrill(demo), [demo]);
 
   useEffect(() => {
     if (!playing) return;
@@ -584,8 +631,23 @@ export function TahiniDemoView() {
   function resetDemo() {
     setPlaying(false);
     setActiveScreen("prep");
-    setActiveGrillState("cooking");
     setDemo(INITIAL_DEMO_STATE);
+  }
+
+  function selectScreen(screenId: TahiniScreenId) {
+    setActiveScreen(screenId);
+
+    if (screenId !== "grill") return;
+
+    setDemo((prev) =>
+      prev.grillRunning || prev.grillLastUnsafe
+        ? prev
+        : {
+            ...prev,
+            grillElapsedSeconds: 0,
+            grillRunning: true,
+          },
+    );
   }
 
   function setDemandMultiplier(next: number) {
@@ -634,27 +696,7 @@ export function TahiniDemoView() {
     }));
   }
 
-  function chooseGrillState(stateId: GrillStateId) {
-    setActiveGrillState(stateId);
-    setDemo((prev) => ({
-      ...prev,
-      grillElapsedSeconds:
-        stateId === "idle"
-          ? 0
-          : stateId === "cooking"
-            ? 17
-            : stateId === "ready"
-              ? 30
-              : stateId === "over"
-                ? 38
-                : 19,
-      grillRunning: stateId === "cooking",
-      grillLastUnsafe: stateId === "safety",
-    }));
-  }
-
   function startGrillBatch() {
-    setActiveGrillState("cooking");
     setDemo((prev) => ({
       ...prev,
       grillElapsedSeconds: 0,
@@ -684,7 +726,7 @@ export function TahiniDemoView() {
 
       const elapsedSeconds = prev.grillElapsedSeconds;
       const unsafe = elapsedSeconds < 30;
-      const late = elapsedSeconds > 35;
+      const late = elapsedSeconds > 30;
 
       return {
         ...prev,
@@ -697,7 +739,6 @@ export function TahiniDemoView() {
         grillElapsedSeconds: unsafe ? elapsedSeconds : 0,
       };
     });
-    setActiveGrillState("idle");
   }
 
   return (
@@ -717,7 +758,7 @@ export function TahiniDemoView() {
               <button
                 key={screen.id}
                 type="button"
-                onClick={() => setActiveScreen(screen.id)}
+                onClick={() => selectScreen(screen.id)}
                 aria-pressed={activeScreen === screen.id}
                 className={cn(
                   "focus-visible:ring-ring flex min-h-16 items-center gap-3 border px-3 py-2 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none",
@@ -789,8 +830,6 @@ export function TahiniDemoView() {
         {activeScreen === "grill" ? (
           <GrillScreen
             projection={grillProjection}
-            activeState={activeGrillState}
-            onStateChange={chooseGrillState}
             onStartBatch={startGrillBatch}
             onAdvance={advanceGrill}
             onRemove={removeGrillBatch}
@@ -807,7 +846,7 @@ function getScreenTitle(screen: TahiniScreenId) {
   if (screen === "prep") return "Morning prep";
   if (screen === "live") return "Live cooking";
   if (screen === "stockout") return "Stockout reload";
-  return "Grill - 4 sub-states";
+  return "Grill station";
 }
 
 function getScreenPrompt(screen: TahiniScreenId) {
@@ -1102,20 +1141,45 @@ function StockoutScreen({
   onStartReload: () => void;
   onShave: (spitId: string) => void;
 }) {
-  const fallbackRisk =
-    projection.spits
-      .filter((spit) => spit.protein === "Chicken")
-      .sort((a, b) => a.remainingKg - b.remainingKg)[0] ?? projection.spits[0];
-  const riskSpit = projection.riskSpit ?? fallbackRisk;
-  const stockoutSpit = toStockoutSpit(riskSpit, demo);
-  const remainingSpits = projection.spits
-    .filter((spit) => spit.id !== riskSpit.id)
-    .map((spit) => toStockoutSpit(spit, demo));
+  const spitOne =
+    projection.spits.find((spit) => spit.id === "SPIT 1") ??
+    projection.spits[0];
+  const baseSpitOne =
+    TAHINI_LIVE.spits.find((spit) => spit.id === "SPIT 1") ?? spitOne;
+
+  if (!spitOne || !baseSpitOne) return null;
+
+  const reloadComplete = isReloadComplete(baseSpitOne, demo);
   const projectedEmpty = formatTimeOfDay(
     BASE_TIME_MINUTES +
       demo.elapsedMinutes +
-      getProjectedEmptyMinutes(riskSpit, demo),
+      getProjectedEmptyMinutes(spitOne, demo),
   );
+  const stockoutSpit = reloadComplete
+    ? makeReloadedStockoutSpit(baseSpitOne, demo)
+    : {
+        ...toStockoutSpit(spitOne, demo),
+        status: "Depleting fast",
+        tone: "critical" as const,
+      };
+  const remainingSpits = projection.spits
+    .filter((spit) => spit.id === "SPIT 2" || spit.id === "SPIT 3")
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map((spit) => toStockoutSpit(spit, demo));
+  const displayRemainingKg = reloadComplete
+    ? stockoutSpit.remainingKg +
+      sumBy(remainingSpits, (spit) => spit.remainingKg)
+    : projection.remainingKg;
+  const stockoutDetail = reloadComplete
+    ? "reload handed off - 3 live spits"
+    : "spit 1 - chicken";
+  const stockoutMessage = reloadComplete
+    ? "Reload complete. The new chicken cone has taken over Spit 1, and the side prep slot is gone."
+    : `Spit 1 projected empty at ~${projectedEmpty}. ${
+        projection.riskSpit
+          ? "Start a new cone now to stay inside the buffer."
+          : "Demand has not crossed the buffer yet."
+      }`;
 
   return (
     <TabletFrame>
@@ -1126,38 +1190,46 @@ function StockoutScreen({
           <AlertTriangle className="mt-1 size-5 shrink-0 text-orange-600 dark:text-orange-300" />
           <div>
             <p className="text-xs font-semibold tracking-[0.24em] text-orange-700 uppercase dark:text-orange-200">
-              {projection.riskSpit
-                ? TAHINI_STOCKOUT.alert.label
-                : "Reload monitor - chicken"}
+              {reloadComplete
+                ? "Reload complete"
+                : projection.riskSpit
+                  ? TAHINI_STOCKOUT.alert.label
+                  : "Reload monitor - chicken"}
             </p>
             <p className="text-muted-foreground mt-2 max-w-2xl text-base font-semibold">
-              {riskSpit.id} projected empty at ~{projectedEmpty}.{" "}
-              {projection.riskSpit
-                ? "Start a new cone now to stay inside the buffer."
-                : "Demand has not crossed the buffer yet."}
+              {stockoutMessage}
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button variant="ghost" className="text-muted-foreground">
-            Snooze 15m
-          </Button>
-          <Button
-            type="button"
-            className="bg-foreground text-background hover:bg-foreground/90"
-            onClick={onStartReload}
+        {reloadComplete ? (
+          <Badge
+            variant="outline"
+            className="border-border bg-card px-3 py-2 tracking-[0.18em] uppercase"
           >
-            {demo.reloadStarted ? "Reload cooking" : "Start reload"}
-            <ChevronRight className="size-4" />
-          </Button>
-        </div>
+            Three-spit view
+          </Badge>
+        ) : (
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="ghost" className="text-muted-foreground">
+              Snooze 15m
+            </Button>
+            <Button
+              type="button"
+              className="bg-foreground text-background hover:bg-foreground/90"
+              onClick={onStartReload}
+            >
+              {demo.reloadStarted ? "Reload cooking" : "Start reload"}
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
       <KpiStrip
         items={[
           {
             label: "Remaining on spits",
-            value: `${projection.remainingKg.toFixed(1)} kg`,
+            value: `${displayRemainingKg.toFixed(1)} kg`,
             detail: "across 3 spits",
           },
           {
@@ -1167,20 +1239,29 @@ function StockoutScreen({
           },
           {
             label: "Est. stockout",
-            value: projectedEmpty,
-            detail: `${riskSpit.id.toLowerCase()} - ${riskSpit.protein.toLowerCase()}`,
+            value: reloadComplete ? "--" : projectedEmpty,
+            detail: stockoutDetail,
           },
         ]}
-        highlightLast
+        highlightLast={!reloadComplete}
       />
 
       <SectionLabel className="mt-6">Spits - live</SectionLabel>
-      <div className="grid gap-4 xl:grid-cols-[minmax(220px,0.9fr)_minmax(240px,1fr)_minmax(220px,0.9fr)_minmax(220px,0.9fr)]">
+      <div
+        className={cn(
+          "grid gap-4",
+          reloadComplete
+            ? "xl:grid-cols-3"
+            : "xl:grid-cols-[minmax(220px,0.9fr)_minmax(240px,1fr)_minmax(220px,0.9fr)_minmax(220px,0.9fr)]",
+        )}
+      >
         <StockoutSpitCard
           spit={stockoutSpit}
-          onShave={() => onShave(riskSpit.id)}
+          onShave={() => onShave(spitOne.id)}
         />
-        <ReloadCard demo={demo} onStartReload={onStartReload} />
+        {reloadComplete ? null : (
+          <ReloadCard demo={demo} onStartReload={onStartReload} />
+        )}
         {remainingSpits.map((spit) => (
           <StockoutSpitCard
             key={spit.id}
@@ -1195,102 +1276,42 @@ function StockoutScreen({
 
 function GrillScreen({
   projection,
-  activeState,
-  onStateChange,
   onStartBatch,
   onAdvance,
   onRemove,
 }: {
   projection: GrillProjection;
-  activeState: GrillStateId;
-  onStateChange: (state: GrillStateId) => void;
   onStartBatch: () => void;
   onAdvance: (seconds: number) => void;
   onRemove: () => void;
 }) {
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="grid gap-3">
-        <GrillDevice state={projection.state} />
-        <div className="border-border bg-card flex flex-wrap items-center gap-2 border p-3">
-          <Button type="button" onClick={onStartBatch}>
-            <Play className="size-4" />
-            Start batch
-          </Button>
-          <Button type="button" variant="outline" onClick={() => onAdvance(5)}>
-            <TimerReset className="size-4" />
-            +5s
-          </Button>
-          <Button
-            type="button"
-            variant={
-              projection.state.tone === "safety" ? "destructive" : "outline"
-            }
-            onClick={onRemove}
-          >
-            {projection.state.tone === "safety"
-              ? "Log corrective"
-              : "Remove now"}
-          </Button>
-          <span className="text-muted-foreground ml-auto text-sm">
-            {projection.running
-              ? `${projection.elapsedSeconds}s on grill`
-              : "timer idle"}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <div className="border-border bg-card border p-3">
-          <SectionLabel>Grill sub-state</SectionLabel>
-          <div className="mt-3 grid gap-2">
-            {TAHINI_GRILL_STATES.map((state) => {
-              const Icon = TAHINI_GRILL_ICON_BY_TONE[state.tone];
-              const active = state.id === activeState;
-
-              return (
-                <button
-                  key={state.id}
-                  type="button"
-                  onClick={() => onStateChange(state.id)}
-                  aria-pressed={active}
-                  className={cn(
-                    "focus-visible:ring-ring grid min-h-20 grid-cols-[40px_1fr] items-center gap-3 border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none",
-                    active
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border bg-card text-muted-foreground hover:border-foreground/60 hover:text-foreground",
-                  )}
-                >
-                  <span className="flex size-10 items-center justify-center border border-current">
-                    <Icon className="size-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="text-xs font-semibold tracking-[0.2em] uppercase">
-                      {state.code}
-                    </span>
-                    <span className="block text-sm font-semibold">
-                      {state.title}
-                    </span>
-                    <span className="block text-xs opacity-75">
-                      {state.caption}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-          {TAHINI_GRILL_STATES.map((state) => (
-            <GrillMiniCard
-              key={state.id}
-              state={state}
-              active={state.id === activeState}
-              onClick={() => onStateChange(state.id)}
-            />
-          ))}
-        </div>
+    <div className="mx-auto grid w-full max-w-5xl gap-3">
+      <GrillDevice state={projection.state} />
+      <div className="border-border bg-card flex flex-wrap items-center gap-2 border p-3">
+        <Button type="button" onClick={onStartBatch}>
+          <Play className="size-4" />
+          Item landed
+        </Button>
+        <Button type="button" variant="outline" onClick={() => onAdvance(5)}>
+          <TimerReset className="size-4" />
+          +5s
+        </Button>
+        <Button
+          type="button"
+          variant={
+            projection.state.tone === "safety" ? "destructive" : "outline"
+          }
+          disabled={!projection.running && projection.state.tone !== "safety"}
+          onClick={onRemove}
+        >
+          {projection.state.tone === "safety" ? "Log corrective" : "Remove now"}
+        </Button>
+        <span className="text-muted-foreground ml-auto text-sm">
+          {projection.running
+            ? `${projection.elapsedSeconds}s on grill - target 30s`
+            : "camera waiting for next item"}
+        </span>
       </div>
     </div>
   );
@@ -1534,7 +1555,7 @@ function StockoutSpitCard({
         )}
         onClick={onShave}
       >
-        Shave 0.35 kg
+        Shave now
       </Button>
     </div>
   );
@@ -1684,40 +1705,6 @@ function GrillDevice({ state }: { state: GrillState }) {
         </div>
       ) : null}
     </TabletFrame>
-  );
-}
-
-function GrillMiniCard({
-  state,
-  active,
-  onClick,
-}: {
-  state: GrillState;
-  active: boolean;
-  onClick: () => void;
-}) {
-  const styles = GRILL_TONE_STYLES[state.tone];
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "bg-card focus-visible:ring-ring min-h-28 border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none",
-        active ? "border-foreground shadow-sm" : "border-border",
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-muted-foreground text-xs font-semibold tracking-[0.2em] uppercase">
-          {state.code}
-        </p>
-        <span className={cn("text-sm font-bold", styles.text)}>
-          {state.timeValue}
-        </span>
-      </div>
-      <p className="mt-2 font-semibold">{state.title}</p>
-      <p className="text-muted-foreground mt-1 text-xs">{state.caption}</p>
-    </button>
   );
 }
 
