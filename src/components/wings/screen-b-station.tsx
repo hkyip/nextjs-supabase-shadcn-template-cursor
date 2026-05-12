@@ -156,18 +156,17 @@ export function ScreenBStation({
             ))}
           </div>
 
-          {/* Educational reference strip — shows both violation states even if none active */}
-          <ViolationReferenceStrip
-            cookSeconds={config.cookSeconds}
-            cookOvershootSeconds={config.cookOvershootSeconds}
-            wingsPerLb={config.wingsPerLb}
-            basketCapacityLbs={config.basketCapacityLbs}
-            violationCount={violationCount}
-            totalCycles={totalCycles}
-            compliancePct={compliancePct}
-            undercookedPulls={state.kpis.undercookedPulls}
-            overcookedPulls={state.kpis.overcookedPulls}
-          />
+          {/* Compliance counter — single live metric, no reference cards */}
+          <div className="violations-line">
+            <span>
+              Today&apos;s compliance:{" "}
+              <span className="vio-count">
+                {violationCount} violation{violationCount === 1 ? "" : "s"}
+              </span>{" "}
+              of {totalCycles} baskets · {compliancePct}% on-time
+            </span>
+            <span className="vio-link">[ View log → ]</span>
+          </div>
 
           <div className="footer-actions">
             <div className="footer-meta">
@@ -348,105 +347,6 @@ function FryerCard({
             <div className="hold-mark">· · ·</div>
           </>
         )}
-      </div>
-    </div>
-  );
-}
-
-/* ============== Reference strip — educational violation panel ============== */
-
-interface RefProps {
-  cookSeconds: number;
-  cookOvershootSeconds: number;
-  wingsPerLb: number;
-  basketCapacityLbs: number;
-  violationCount: number;
-  totalCycles: number;
-  compliancePct: number;
-  undercookedPulls: number;
-  overcookedPulls: number;
-}
-
-function ViolationReferenceStrip({
-  cookSeconds,
-  wingsPerLb,
-  basketCapacityLbs,
-  violationCount,
-  totalCycles,
-  compliancePct,
-  undercookedPulls,
-  overcookedPulls,
-}: RefProps) {
-  const sampleWings = Math.round(basketCapacityLbs * wingsPerLb);
-  const sampleShortfall = "2:12";
-  const samplePulledAt = "5:18";
-  const sampleOvershoot = "0:47";
-
-  return (
-    <div className="ref-strip">
-      <div className="ref-strip-label">↓ ADDITIONAL CARD STATES — VIOLATIONS</div>
-      <div className="ref-grid">
-        {/* UNDERCOOKED example */}
-        <div>
-          <div className="fryer undercooked">
-            <div className="fryer-head">
-              <span className="name">B1</span>
-              <span className="state undercooked">UNDERCOOKED</span>
-            </div>
-            <div className="fryer-body">
-              <div className="violation-msg">⚠ PULLED EARLY</div>
-              <div className="violation-detail">
-                at {samplePulledAt} · {sampleShortfall} short of 7:30
-              </div>
-              <div className="fryer-num">{sampleWings}</div>
-              <div className="fryer-lbl">wings · do not serve</div>
-              <button className="redrop-btn" type="button" disabled>
-                ▶ REDROP
-              </button>
-            </div>
-          </div>
-          <div className="ref-caption">
-            camera detects basket lift before 7:30 · food-safety violation logged ·
-            cook prompted to redrop · today: <strong>{undercookedPulls}</strong>
-          </div>
-        </div>
-
-        {/* OVERCOOKED example */}
-        <div>
-          <div className="fryer overcooked">
-            <div className="fryer-head">
-              <span className="name">B2</span>
-              <span className="state overcooked">OVERCOOKED</span>
-            </div>
-            <div className="fryer-body">
-              <div className="fryer-num">{sampleWings}</div>
-              <div className="fryer-lbl">wings in basket</div>
-              <div className="fryer-timer overcooked">+{sampleOvershoot}</div>
-              <div className="fryer-cam overcooked-cam">
-                <span className="dot" />
-                PAST 7:30 · COUNTING UP
-              </div>
-              <button className="pull-btn" type="button" disabled>
-                PULL NOW<span className="mic">🎤 voice</span>
-              </button>
-            </div>
-          </div>
-          <div className="ref-caption">
-            timer crosses {fmt(cookSeconds)} and counts UP per second · color flips
-            to flag · today: <strong>{overcookedPulls}</strong>
-          </div>
-        </div>
-      </div>
-
-      <div className="violations-line">
-        <span>
-          Today&apos;s compliance:{" "}
-          <span className="vio-count">
-            {violationCount} violation{violationCount === 1 ? "" : "s"}
-          </span>{" "}
-          of {totalCycles} baskets · {compliancePct}% on-time
-        </span>
-        <span className="vio-link">[ View log → ]</span>
       </div>
     </div>
   );
