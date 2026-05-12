@@ -118,6 +118,8 @@ export function WingsView() {
                 weightLbs: 0,
                 startedAtMs: null,
                 elapsedSeconds: 0,
+                pulledAtMs: null,
+                shortfallSeconds: 0,
               }),
             );
             baskets = [...prev.baskets, ...extra];
@@ -166,6 +168,8 @@ export function WingsView() {
               weightLbs: lbs,
               startedAtMs: Date.now(),
               elapsedSeconds: 0,
+              pulledAtMs: null,
+              shortfallSeconds: 0,
             }
           : b,
       );
@@ -179,18 +183,38 @@ export function WingsView() {
         key: p.key + 1,
         msg: `Vision AI confirmed B${idx} drop · 7:30 timer started`,
       }));
-      return { ...prev, baskets, adherence };
+      return {
+        ...prev,
+        baskets,
+        adherence,
+        kpis: {
+          ...prev.kpis,
+          totalBasketCycles: prev.kpis.totalBasketCycles + 1,
+        },
+      };
     });
   }, []);
 
+  /** Pull a basket. Branches:
+   *   - pulled >30s short of 7:30 → undercooked violation, basket retains wings,
+   *     status sticks until redrop or reset. Wings NOT moved to bin.
+   *   - pulled >30s past 7:30 + overshoot → overcooked-pull violation logged,
+   *     wings DO move to bin (still edible if barely past).
+   *   - otherwise → normal pull, wings to bin, basket empties.
+   */
   const onPullBasket = useCallback((basketId: string) => {
     setState((prev) => {
       const basket = prev.baskets.find((b) => b.id === basketId);
       if (!basket) return prev;
-      const cookOk =
-        basket.elapsedSeconds >= prev.config.cookSeconds - 5 &&
-        basket.elapsedSeconds <=
-          prev.config.cookSeconds + prev.config.cookOvershootSeconds;
+      const { cookSeconds, cookOvershootSeconds } = prev.config;
+      const elapsed = basket.elapsedSeconds;
+      const SHORT_GRACE = 30; // can pull up to 30s before 7:30 and still count as on-time
+
+      const isUndercooked = elapsed < cookSeconds - SHORT_GRACE;
+      const isOvercookedPull = elapsed > cookSeconds + cookOvershootSeconds;
+      const cookOk = !isUndercooked && !isOvercookedPull;
+
+      // Update cook adherence (rolling pct of pulls landing in the SOP window)
       const newCookPercent =
         prev.adherence.totalCookCycles === 0
           ? cookOk
@@ -201,6 +225,38 @@ export function WingsView() {
                 (cookOk ? 100 : 0)) /
                 (prev.adherence.totalCookCycles + 1),
             );
+
+      const idx = basket.index + 1;
+
+      if (isUndercooked) {
+        // Flip basket to undercooked state — wings stay put.
+        const shortfall = Math.max(0, cookSeconds - elapsed);
+        const baskets = prev.baskets.map<FryerBasket>((b) =>
+          b.id === basketId
+            ? {
+                ...b,
+                status: "undercooked",
+                pulledAtMs: Date.now(),
+                shortfallSeconds: shortfall,
+              }
+            : b,
+        );
+        setVisionToast((p) => ({
+          key: p.key + 1,
+          msg: `⚠ B${idx} pulled early · ${formatDuration(shortfall)} short of 7:30`,
+        }));
+        return {
+          ...prev,
+          baskets,
+          adherence: { ...prev.adherence, cookPercent: newCookPercent },
+          kpis: {
+            ...prev.kpis,
+            undercookedPulls: prev.kpis.undercookedPulls + 1,
+          },
+        };
+      }
+
+      // Normal pull / overcooked-pull — wings move to bin, basket clears.
       const baskets = prev.baskets.map<FryerBasket>((b) =>
         b.id === basketId
           ? {
@@ -209,6 +265,8 @@ export function WingsView() {
               weightLbs: 0,
               startedAtMs: null,
               elapsedSeconds: 0,
+              pulledAtMs: null,
+              shortfallSeconds: 0,
             }
           : b,
       );
@@ -216,6 +274,15 @@ export function WingsView() {
         prev.holdingBin.weightLbs > 0
           ? prev.holdingBin.oldestBatchAtMs
           : Date.now();
+
+      if (isOvercookedPull) {
+        const over = elapsed - cookSeconds;
+        setVisionToast((p) => ({
+          key: p.key + 1,
+          msg: `⚠ B${idx} pulled overcooked · ${formatDuration(over)} past 7:30`,
+        }));
+      }
+
       return {
         ...prev,
         baskets,
@@ -228,6 +295,45 @@ export function WingsView() {
           oldestBatchAtMs: newOldest,
         },
         adherence: { ...prev.adherence, cookPercent: newCookPercent },
+        kpis: {
+          ...prev.kpis,
+          overcookedPulls:
+            prev.kpis.overcookedPulls + (isOvercookedPull ? 1 : 0),
+        },
+      };
+    });
+  }, []);
+
+  /** Restart cook from 0 after an undercooked pull. */
+  const onRedropBasket = useCallback((basketId: string) => {
+    setState((prev) => {
+      const basket = prev.baskets.find((b) => b.id === basketId);
+      if (!basket || basket.status !== "undercooked") return prev;
+      const baskets = prev.baskets.map<FryerBasket>((b) =>
+        b.id === basketId
+          ? {
+              ...b,
+              status: "frying",
+              startedAtMs: Date.now(),
+              elapsedSeconds: 0,
+              pulledAtMs: null,
+              shortfallSeconds: 0,
+              // weight stays the same — same wings going back in
+            }
+          : b,
+      );
+      const idx = basket.index + 1;
+      setVisionToast((p) => ({
+        key: p.key + 1,
+        msg: `Vision AI confirmed B${idx} redrop · 7:30 timer restarted`,
+      }));
+      return {
+        ...prev,
+        baskets,
+        kpis: {
+          ...prev.kpis,
+          totalBasketCycles: prev.kpis.totalBasketCycles + 1,
+        },
       };
     });
   }, []);
@@ -378,6 +484,7 @@ export function WingsView() {
             nowMs={nowMs}
             onDrop={onDropBasket}
             onPull={onPullBasket}
+            onRedrop={onRedropBasket}
           />
         ) : null}
         {activeScreen === "c" ? (
@@ -415,6 +522,13 @@ function TabButton({
       <span className="ttl">{ttl}</span>
     </button>
   );
+}
+
+function formatDuration(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  const mm = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${mm}:${ss.toString().padStart(2, "0")}`;
 }
 
 function Kpi({ icon, label }: { icon?: React.ReactNode; label: string }) {

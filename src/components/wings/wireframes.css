@@ -350,10 +350,46 @@
   display: flex;
   justify-content: space-between;
   background: rgb(250, 250, 250);
-  max-width: 540px;
+  max-width: 720px;
 }
 .stl-wires .violations-line .vio-count { color: rgb(17, 24, 39); font-weight: 600; }
 .stl-wires .violations-line .vio-link { color: rgb(107, 114, 128); text-decoration: underline; }
+
+/* Reference strip — educational violation panel under the live grid */
+.stl-wires .ref-strip {
+  margin-top: 24px;
+  border-top: 2px dashed rgb(209, 213, 219);
+  padding-top: 20px;
+}
+.stl-wires .ref-strip-label {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: rgb(156, 163, 175);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.stl-wires .ref-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  max-width: 540px;
+  margin: 0 auto;
+}
+.stl-wires .ref-caption {
+  font-size: 10px;
+  color: rgb(107, 114, 128);
+  text-align: center;
+  margin-top: 8px;
+  font-style: italic;
+  letter-spacing: 0.3px;
+}
+.stl-wires .ref-caption strong {
+  color: rgb(17, 24, 39);
+  font-weight: 700;
+  font-style: normal;
+}
+.stl-wires .ref-grid button:disabled { opacity: 0.7; cursor: default; }
 
 /* SCREEN C — Camera view */
 .stl-wires .cam-health {
@@ -728,6 +764,7 @@
 .dark .stl-wires .fryer.undercooked .fryer-num { color: rgb(252, 165, 165); }
 .dark .stl-wires .violation-msg { color: rgb(248, 113, 113); }
 .dark .stl-wires .violation-detail { color: rgb(252, 165, 165); }
+.dark .stl-wires .redrop-btn { background: rgb(220, 38, 38); border-color: rgb(220, 38, 38); }
 
 /* Violations counter */
 .dark .stl-wires .violations-line {
@@ -796,3 +833,13 @@
   color: rgb(17, 24, 39);
 }
 .dark .stl-wires .cam-empty-msg { color: rgb(156, 163, 175); }
+
+/* Reference strip — dark */
+.dark .stl-wires .ref-strip { border-top-color: rgb(55, 60, 70); }
+.dark .stl-wires .ref-strip-label { color: rgb(107, 114, 128); }
+.dark .stl-wires .ref-caption { color: rgb(107, 114, 128); }
+.dark .stl-wires .ref-caption strong { color: rgb(243, 244, 246); }
+
+/* Undercooked fryer card — dark mode adapts red palette */
+.stl-wires .fryer-head .state.undercooked { background: rgb(185, 28, 28); color: rgb(255, 255, 255); border-color: rgb(127, 29, 29); }
+.dark .stl-wires .fryer-head .state.undercooked { background: rgb(220, 38, 38); color: rgb(255, 255, 255); border-color: rgb(127, 29, 29); }

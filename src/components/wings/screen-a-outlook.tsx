@@ -226,18 +226,8 @@ export function ScreenAOutlook({
             </div>
           </div>
 
-          <div className="yesterday-strip">
-            <div className="panel-header">
-              <span className="h">YESTERDAY · THURSDAY</span>
-              <span className="sub">[ See full recap → ]</span>
-            </div>
-            <div className="recap-grid">
-              <Recap lbl="FORECASTED" val="1,420" sub="wings" />
-              <Recap lbl="DROPPED" val="1,510" sub="wings into fryer" />
-              <Recap lbl="SOLD" val="1,468" sub="wings · ↑ 3.4% vs forecast" />
-              <Recap lbl="FORECAST ACCURACY" val="96.7%" sub="within target band" />
-            </div>
-          </div>
+          <YesterdayRecap state={state} accuracy={accuracy} nowMs={nowMs} />
+
 
           <div className="footer-actions">
             <div className="footer-meta">
@@ -282,6 +272,89 @@ function Recap({ lbl, val, sub }: { lbl: string; val: string; sub: string }) {
       <div className="lbl">{lbl}</div>
       <div className="val">{val}</div>
       <div className="sub">{sub}</div>
+    </div>
+  );
+}
+
+/** Yesterday recap — uses live session data once the demo has run long enough,
+ * otherwise falls back to a hardcoded baseline so the screen still feels real. */
+function YesterdayRecap({
+  state,
+  accuracy,
+  nowMs,
+}: {
+  state: WingsPersistedStateV1;
+  accuracy: number;
+  nowMs: number;
+}) {
+  const soldToday = Math.floor(state.wingsSoldToday);
+  const useLive = soldToday >= 500; // ~enough samples to feel meaningful
+
+  let forecasted: number;
+  let dropped: number;
+  let sold: number;
+  let accuracyPct: number;
+  let soldDeltaPct: number;
+  let dayLabel: string;
+
+  if (useLive) {
+    sold = soldToday;
+    // Drops = sold + leftover in baskets/holding (waste signal), but cap to a sane multiple.
+    const inFlight =
+      Math.round(state.holdingBin.weightLbs * state.config.wingsPerLb) +
+      Math.round(
+        state.baskets.reduce((s, b) => s + b.weightLbs, 0) *
+          state.config.wingsPerLb,
+      );
+    dropped = sold + inFlight;
+    accuracyPct = accuracy;
+    // Forecasted = sold × (1 / (1 + delta))  — derive so the math is internally consistent.
+    const deltaPct = 100 - accuracyPct;
+    forecasted = Math.round(sold * (1 - deltaPct / 200));
+    soldDeltaPct =
+      forecasted === 0
+        ? 0
+        : Math.round(((sold - forecasted) / forecasted) * 1000) / 10;
+    dayLabel = "TODAY · LIVE";
+  } else {
+    forecasted = 1420;
+    dropped = 1510;
+    sold = 1468;
+    accuracyPct = 96.7 as unknown as number; // keep one-decimal display via formatting
+    soldDeltaPct = 3.4;
+    dayLabel = "YESTERDAY";
+  }
+
+  // Day name from "yesterday" relative to nowMs
+  if (!useLive) {
+    const yesterday = new Date(nowMs - 24 * 60 * 60 * 1000);
+    const weekday = yesterday.toLocaleDateString("en-US", { weekday: "long" });
+    dayLabel = `YESTERDAY · ${weekday.toUpperCase()}`;
+  }
+
+  const fmtAcc = (n: number) =>
+    n === Math.floor(n) ? `${n}%` : `${n.toFixed(1)}%`;
+
+  return (
+    <div className="yesterday-strip">
+      <div className="panel-header">
+        <span className="h">{dayLabel}</span>
+        <span className="sub">[ See full recap → ]</span>
+      </div>
+      <div className="recap-grid">
+        <Recap lbl="FORECASTED" val={forecasted.toLocaleString()} sub="wings" />
+        <Recap lbl="DROPPED" val={dropped.toLocaleString()} sub="wings into fryer" />
+        <Recap
+          lbl="SOLD"
+          val={sold.toLocaleString()}
+          sub={`wings · ${soldDeltaPct >= 0 ? "↑" : "↓"} ${Math.abs(soldDeltaPct).toFixed(1)}% vs forecast`}
+        />
+        <Recap
+          lbl="FORECAST ACCURACY"
+          val={fmtAcc(accuracyPct)}
+          sub="within target band"
+        />
+      </div>
     </div>
   );
 }

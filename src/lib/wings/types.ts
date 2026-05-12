@@ -17,7 +17,8 @@ export type BasketStatus =
   | "empty"
   | "frying"
   | "ready" // cooked but not yet pulled to holding bin
-  | "overcook"; // past 7:30 + overshoot allowance
+  | "overcook" // past 7:30 + overshoot allowance — still in basket
+  | "undercooked"; // pulled before 7:30 — violation, wings can't be served
 
 export type CoachKind =
   | "predrop-needed"
@@ -36,6 +37,10 @@ export interface FryerBasket {
   startedAtMs: number | null;
   /** elapsed seconds since startedAt (recomputed on tick at sim speed) */
   elapsedSeconds: number;
+  /** when the basket was pulled early (only set while status==="undercooked") */
+  pulledAtMs: number | null;
+  /** seconds short of cookSeconds at pull (only set while status==="undercooked") */
+  shortfallSeconds: number;
 }
 
 export interface HoldingBin {
@@ -106,6 +111,12 @@ export interface WingsKpis {
   baselineLbsPerHour: number;
   /** Realized revenue $ delta vs. baseline since session start */
   revenueLiftDollars: number;
+  /** Total basket cycles attempted today (drops). */
+  totalBasketCycles: number;
+  /** Cycles pulled before 7:30 - 30s grace = undercooked violations. */
+  undercookedPulls: number;
+  /** Cycles where basket went past 7:30 + cookOvershoot before being pulled. */
+  overcookedPulls: number;
 }
 
 export interface WingsPersistedStateV1 {

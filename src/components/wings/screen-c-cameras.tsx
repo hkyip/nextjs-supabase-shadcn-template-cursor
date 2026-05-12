@@ -121,6 +121,7 @@ function CamCard({
   const isFrying = basket.status === "frying";
   const isReady = basket.status === "ready";
   const isOvercook = basket.status === "overcook";
+  const isUndercooked = basket.status === "undercooked";
   const isEmpty = basket.status === "empty";
   const wings = Math.round(basket.weightLbs * wingsPerLb);
   const idx = basket.index + 1;
@@ -151,9 +152,21 @@ function CamCard({
   } as Parameters<typeof basketRemainingSeconds>[1]);
   void remainingSec;
 
-  const cardClass = isOvercook
-    ? "cam-card violation-over"
-    : "cam-card";
+  const cardClass = isUndercooked
+    ? "cam-card violation-under"
+    : isOvercook
+      ? "cam-card violation-over"
+      : "cam-card";
+
+  const pulledAtLabel = basket.pulledAtMs
+    ? new Date(basket.pulledAtMs).toLocaleTimeString("en-US", {
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })
+    : "—";
+  const shortfallStr = `${Math.floor(basket.shortfallSeconds / 60)}:${(basket.shortfallSeconds % 60).toString().padStart(2, "0")}`;
 
   return (
     <div className={cardClass}>
@@ -167,7 +180,29 @@ function CamCard({
           <span className="res">1280×960 · 2fps</span>
         </div>
 
-        {isEmpty ? (
+        {isUndercooked ? (
+          <>
+            <CamSvgUnder wingCount={Math.max(8, Math.min(28, wings))} />
+            <div
+              className="cam-detect-label red"
+              style={{ top: 86, left: 76 }}
+            >
+              ⚠ PULLED EARLY
+            </div>
+            <div
+              className="cam-detect-label"
+              style={{ top: 86, right: 12, background: "rgb(107,114,128)", color: "#fff" }}
+            >
+              POS: {wings} wings
+            </div>
+            <div className="cam-overlay-bottom">
+              <span>PULL DETECTED {pulledAtLabel}</span>
+              <span className="time-stamp" style={{ color: "rgb(248, 113, 113)" }}>
+                {shortfallStr} SHORT · do not serve
+              </span>
+            </div>
+          </>
+        ) : isEmpty ? (
           <>
             <CamSvgEmpty />
             <div className="cam-empty-msg">NO BASKET DETECTED</div>
@@ -246,14 +281,37 @@ function CamCard({
           <span className="name">FRYER {idx}</span>
           <span
             className={`state-pill ${
-              isOvercook ? "over" : isReady ? "ready" : isFrying ? "cooking" : "empty"
+              isUndercooked
+                ? "under"
+                : isOvercook
+                  ? "over"
+                  : isReady
+                    ? "ready"
+                    : isFrying
+                      ? "cooking"
+                      : "empty"
             }`}
           >
-            {isOvercook ? "OVERCOOKED" : isReady ? "READY" : isFrying ? "COOKING" : "EMPTY"}
+            {isUndercooked
+              ? "UNDERCOOKED"
+              : isOvercook
+                ? "OVERCOOKED"
+                : isReady
+                  ? "READY"
+                  : isFrying
+                    ? "COOKING"
+                    : "EMPTY"}
           </span>
         </div>
 
-        {isEmpty ? (
+        {isUndercooked ? (
+          <>
+            <Stat k="Wings (via POS)" v={`${wings}`} big />
+            <Stat k="Pulled at" v={pulledAtLabel} mono red />
+            <Stat k="Short of 7:30" v={shortfallStr} mono red />
+            <Stat k="Drop event" v={dropTimeStr} />
+          </>
+        ) : isEmpty ? (
           <>
             <Stat k="Basket detected" v="NO" />
             <Stat k="Empty for" v="—" mono />
@@ -284,7 +342,17 @@ function CamCard({
           <span>BASKET DETECTION</span>
           <span className="conf">
             <span className="dot" />
-            HIGH · {isEmpty ? 99 : isReady ? 97 : isOvercook ? 96 : 98}%
+            HIGH ·{" "}
+            {isEmpty
+              ? 99
+              : isReady
+                ? 97
+                : isOvercook
+                  ? 96
+                  : isUndercooked
+                    ? 95
+                    : 98}
+            %
           </span>
         </div>
       </div>
@@ -298,18 +366,22 @@ function Stat({
   big,
   mono,
   amber,
+  red,
 }: {
   k: string;
   v: string;
   big?: boolean;
   mono?: boolean;
   amber?: boolean;
+  red?: boolean;
 }) {
   return (
     <div className="cam-stat">
       <span className="k">{k}</span>
       <span
-        className={`v${big ? " big" : ""}${mono ? " mono" : ""}${amber ? " amber" : ""}`}
+        className={`v${big ? " big" : ""}${mono ? " mono" : ""}${
+          amber ? " amber" : ""
+        }${red ? " red" : ""}`}
       >
         {v}
       </span>
@@ -467,6 +539,41 @@ function CamSvgOver({ wingCount }: { wingCount: number }) {
         ))}
       </g>
       <rect x="76" y="76" width="248" height="148" fill="none" stroke="#fbbf24" strokeWidth="3" />
+    </svg>
+  );
+}
+
+function CamSvgUnder({ wingCount }: { wingCount: number }) {
+  const pts = wingPoints(67, wingCount);
+  return (
+    <svg className="cam-svg" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+      {FRYER_WELL}
+      {BASKET_PATH}
+      {/* Pale wings — undercooked is too light, not done */}
+      <g fill="#f3e8d2" stroke="#e7d4a6" strokeWidth="0.5" opacity="0.9">
+        {pts.map((p, i) => (
+          <ellipse
+            key={i}
+            cx={p.cx}
+            cy={p.cy}
+            rx="10"
+            ry="6"
+            transform={`rotate(${p.rot} ${p.cx} ${p.cy})`}
+          />
+        ))}
+      </g>
+      {/* Lift arrow — basket coming up before time */}
+      <path
+        d="M 200 240 Q 200 200 200 160"
+        stroke="#ef4444"
+        strokeWidth="1.8"
+        strokeDasharray="4,3"
+        fill="none"
+        opacity="0.9"
+      />
+      <polygon points="200,155 195,164 205,164" fill="#ef4444" />
+      {/* Red detection bounding box */}
+      <rect x="76" y="76" width="248" height="148" fill="none" stroke="#ef4444" strokeWidth="3" />
     </svg>
   );
 }

@@ -33,6 +33,8 @@ function freshBaskets(count: number): FryerBasket[] {
     weightLbs: 0,
     startedAtMs: null,
     elapsedSeconds: 0,
+    pulledAtMs: null,
+    shortfallSeconds: 0,
   }));
 }
 
@@ -196,10 +198,13 @@ export function createInitialWingsState(
       dineinServed:
         config.scenario === "calm" ? 4 : config.scenario === "pre-rush" ? 8 : 18,
       forecastVsActual: [],
-      // Hardcoded baseline: at $33.99 / 2 lb published price = $16.995 / lb
-      // Deck names "modest 2-lb/day" uplift. We model baseline = 5 lb/hr pre-AI.
       baselineLbsPerHour: 5,
       revenueLiftDollars: 0,
+      totalBasketCycles:
+        config.scenario === "calm" ? 8 : config.scenario === "pre-rush" ? 24 : 47,
+      undercookedPulls: 0,
+      overcookedPulls:
+        config.scenario === "peak" ? 2 : 0,
     },
     currentBucketActualLbs: 0,
     currentBucketStartMs: nowMs,

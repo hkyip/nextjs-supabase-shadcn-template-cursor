@@ -10,6 +10,7 @@ interface Props {
   nowMs: number;
   onDrop: (basketId: string, lbs: number) => void;
   onPull: (basketId: string) => void;
+  onRedrop: (basketId: string) => void;
 }
 
 export function ScreenBStation({
@@ -18,8 +19,11 @@ export function ScreenBStation({
   nowMs,
   onDrop,
   onPull,
+  onRedrop,
 }: Props) {
   const { config } = state;
+
+  // Demand strip values
   const waitingWings = Math.round(
     state.ordersOpen.reduce((s, o) => s + o.weightLbs, 0) * config.wingsPerLb,
   );
@@ -28,22 +32,15 @@ export function ScreenBStation({
   const next15LowerWings = Math.round(next15LowerLbs * config.wingsPerLb);
   const next15UpperWings = Math.round(next15LowerWings * 1.2);
 
-  const violationCount = state.kpis.forecastVsActual.length; // placeholder rolling count
-  const totalBaskets = Math.max(
-    state.adherence.totalCookCycles,
-    state.baskets.filter((b) => b.status !== "empty").length,
+  // Compliance — real counts from KPIs
+  const totalCycles = Math.max(1, state.kpis.totalBasketCycles);
+  const violationCount =
+    state.kpis.undercookedPulls + state.kpis.overcookedPulls;
+  const compliancePct = Math.round(
+    ((totalCycles - violationCount) / totalCycles) * 100,
   );
-  const compliancePct =
-    totalBaskets === 0
-      ? 100
-      : Math.max(
-          0,
-          Math.min(
-            100,
-            Math.round(state.adherence.cookPercent),
-          ),
-        );
 
+  // Drop recommendations land on the first empty basket
   const dropRecommendationsByBasketId = new Map<string, number>();
   if (predrop.recommendedLbs > 0) {
     const empty = state.baskets.find((b) => b.status === "empty");
@@ -108,6 +105,7 @@ export function ScreenBStation({
             </div>
           </div>
 
+          {/* Live fryer grid */}
           <div
             className="fryer-grid"
             style={{
@@ -127,23 +125,23 @@ export function ScreenBStation({
                 recommendedWings={dropRecommendationsByBasketId.get(b.id)}
                 onDrop={() => onDrop(b.id, config.basketCapacityLbs)}
                 onPull={() => onPull(b.id)}
+                onRedrop={() => onRedrop(b.id)}
               />
             ))}
           </div>
 
-          <div
-            className="violations-line"
-            style={{ maxWidth: 720, marginTop: 18 }}
-          >
-            <span>
-              Today&apos;s compliance:{" "}
-              <span className="vio-count">
-                {violationCount} violation{violationCount === 1 ? "" : "s"}
-              </span>{" "}
-              · {compliancePct}% on-time
-            </span>
-            <span className="vio-link">[ View log → ]</span>
-          </div>
+          {/* Educational reference strip — shows both violation states even if none active */}
+          <ViolationReferenceStrip
+            cookSeconds={config.cookSeconds}
+            cookOvershootSeconds={config.cookOvershootSeconds}
+            wingsPerLb={config.wingsPerLb}
+            basketCapacityLbs={config.basketCapacityLbs}
+            violationCount={violationCount}
+            totalCycles={totalCycles}
+            compliancePct={compliancePct}
+            undercookedPulls={state.kpis.undercookedPulls}
+            overcookedPulls={state.kpis.overcookedPulls}
+          />
 
           <div className="footer-actions">
             <div className="footer-meta">
@@ -164,13 +162,15 @@ export function ScreenBStation({
       </div>
 
       <p className="annotation">
-        Screen B · live. Demand strip locks the next 15&nbsp;min in view. Four fryer cards show the current
-        state per basket: COOKING with countdown · READY for plate-up · IDLE with a drop recommendation
-        · IDLE with no need. OVERCOOKED card flips amber and counts UP when the timer crosses 7:30.
+        Screen B · live. Demand strip locks the next 15&nbsp;min in view. Each fryer card shows the
+        current state: COOKING with countdown · READY for plate-up · IDLE with a drop recommendation
+        · UNDERCOOKED (red, sticky until REDROP) · OVERCOOKED (amber, counting UP).
       </p>
     </>
   );
 }
+
+/* ============================ Live fryer card ============================ */
 
 interface CardProps {
   basket: FryerBasket;
@@ -180,6 +180,7 @@ interface CardProps {
   recommendedWings?: number;
   onDrop: () => void;
   onPull: () => void;
+  onRedrop: () => void;
 }
 
 function FryerCard({
@@ -190,11 +191,12 @@ function FryerCard({
   recommendedWings,
   onDrop,
   onPull,
+  onRedrop,
 }: CardProps) {
   const isFrying = basket.status === "frying";
   const isReady = basket.status === "ready";
   const isOvercook = basket.status === "overcook";
-  const isEmpty = basket.status === "empty";
+  const isUndercooked = basket.status === "undercooked";
 
   const remaining = basketRemainingSeconds(basket, {
     cookSeconds,
@@ -202,33 +204,63 @@ function FryerCard({
   } as Parameters<typeof basketRemainingSeconds>[1]);
   const wings = Math.round(basket.weightLbs * wingsPerLb);
 
-  const mm = Math.floor(Math.abs(remaining) / 60);
-  const ss = Math.abs(remaining) % 60;
-  const timerStr = `${mm}:${ss.toString().padStart(2, "0")}`;
-
+  const timerStr = fmt(Math.max(0, remaining));
   const overcookSeconds = Math.max(0, basket.elapsedSeconds - cookSeconds);
-  const omm = Math.floor(overcookSeconds / 60);
-  const oss = overcookSeconds % 60;
-  const overcookStr = `${omm}:${oss.toString().padStart(2, "0")}`;
+  const overcookStr = fmt(overcookSeconds);
 
-  const stateLabel = isOvercook
-    ? "OVERCOOKED"
-    : isReady
-      ? "READY"
-      : isFrying
-        ? "COOKING"
-        : "IDLE";
-  const stateClass = isOvercook
-    ? "overcooked"
-    : isReady
-      ? "ready"
-      : isFrying
-        ? "cooking"
-        : "idle";
+  const stateLabel = isUndercooked
+    ? "UNDERCOOKED"
+    : isOvercook
+      ? "OVERCOOKED"
+      : isReady
+        ? "READY"
+        : isFrying
+          ? "COOKING"
+          : "IDLE";
+  const stateClass = isUndercooked
+    ? "undercooked"
+    : isOvercook
+      ? "overcooked"
+      : isReady
+        ? "ready"
+        : isFrying
+          ? "cooking"
+          : "idle";
 
-  const rootClass = isOvercook
-    ? "fryer overcooked"
-    : "fryer";
+  const rootClass = isUndercooked
+    ? "fryer undercooked"
+    : isOvercook
+      ? "fryer overcooked"
+      : "fryer";
+
+  // Undercooked card — violation copy + REDROP
+  if (isUndercooked) {
+    const pulledAtLabel = basket.pulledAtMs
+      ? new Date(basket.pulledAtMs).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+        })
+      : "—";
+    return (
+      <div className={rootClass}>
+        <div className="fryer-head">
+          <span className="name">B{basket.index + 1}</span>
+          <span className={`state ${stateClass}`}>{stateLabel}</span>
+        </div>
+        <div className="fryer-body">
+          <div className="violation-msg">⚠ PULLED EARLY</div>
+          <div className="violation-detail">
+            at {pulledAtLabel} · {fmt(basket.shortfallSeconds)} short of 7:30
+          </div>
+          <div className="fryer-num">{wings}</div>
+          <div className="fryer-lbl">wings · do not serve</div>
+          <button className="redrop-btn" type="button" onClick={onRedrop}>
+            ▶ REDROP
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={rootClass}>
@@ -293,7 +325,110 @@ function FryerCard({
       </div>
     </div>
   );
+}
 
-  // satisfy linter for `isEmpty`
-  void isEmpty;
+/* ============== Reference strip — educational violation panel ============== */
+
+interface RefProps {
+  cookSeconds: number;
+  cookOvershootSeconds: number;
+  wingsPerLb: number;
+  basketCapacityLbs: number;
+  violationCount: number;
+  totalCycles: number;
+  compliancePct: number;
+  undercookedPulls: number;
+  overcookedPulls: number;
+}
+
+function ViolationReferenceStrip({
+  cookSeconds,
+  wingsPerLb,
+  basketCapacityLbs,
+  violationCount,
+  totalCycles,
+  compliancePct,
+  undercookedPulls,
+  overcookedPulls,
+}: RefProps) {
+  const sampleWings = Math.round(basketCapacityLbs * wingsPerLb);
+  const sampleShortfall = "2:12";
+  const samplePulledAt = "5:18";
+  const sampleOvershoot = "0:47";
+
+  return (
+    <div className="ref-strip">
+      <div className="ref-strip-label">↓ ADDITIONAL CARD STATES — VIOLATIONS</div>
+      <div className="ref-grid">
+        {/* UNDERCOOKED example */}
+        <div>
+          <div className="fryer undercooked">
+            <div className="fryer-head">
+              <span className="name">B1</span>
+              <span className="state undercooked">UNDERCOOKED</span>
+            </div>
+            <div className="fryer-body">
+              <div className="violation-msg">⚠ PULLED EARLY</div>
+              <div className="violation-detail">
+                at {samplePulledAt} · {sampleShortfall} short of 7:30
+              </div>
+              <div className="fryer-num">{sampleWings}</div>
+              <div className="fryer-lbl">wings · do not serve</div>
+              <button className="redrop-btn" type="button" disabled>
+                ▶ REDROP
+              </button>
+            </div>
+          </div>
+          <div className="ref-caption">
+            camera detects basket lift before 7:30 · food-safety violation logged ·
+            cook prompted to redrop · today: <strong>{undercookedPulls}</strong>
+          </div>
+        </div>
+
+        {/* OVERCOOKED example */}
+        <div>
+          <div className="fryer overcooked">
+            <div className="fryer-head">
+              <span className="name">B2</span>
+              <span className="state overcooked">OVERCOOKED</span>
+            </div>
+            <div className="fryer-body">
+              <div className="fryer-num">{sampleWings}</div>
+              <div className="fryer-lbl">wings in basket</div>
+              <div className="fryer-timer overcooked">+{sampleOvershoot}</div>
+              <div className="fryer-cam overcooked-cam">
+                <span className="dot" />
+                PAST 7:30 · COUNTING UP
+              </div>
+              <button className="pull-btn" type="button" disabled>
+                PULL NOW<span className="mic">🎤 voice</span>
+              </button>
+            </div>
+          </div>
+          <div className="ref-caption">
+            timer crosses {fmt(cookSeconds)} and counts UP per second · color flips
+            to flag · today: <strong>{overcookedPulls}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div className="violations-line">
+        <span>
+          Today&apos;s compliance:{" "}
+          <span className="vio-count">
+            {violationCount} violation{violationCount === 1 ? "" : "s"}
+          </span>{" "}
+          of {totalCycles} baskets · {compliancePct}% on-time
+        </span>
+        <span className="vio-link">[ View log → ]</span>
+      </div>
+    </div>
+  );
+}
+
+function fmt(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  const mm = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${mm}:${ss.toString().padStart(2, "0")}`;
 }

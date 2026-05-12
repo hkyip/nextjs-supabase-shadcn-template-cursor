@@ -145,6 +145,14 @@ export function FryerBasketCard({ basket, config, onDrop, onPull }: Props) {
 
 function toneFor(status: FryerBasket["status"]) {
   switch (status) {
+    case "undercooked":
+      // Retired component — kept for back-compat; map undercooked to rose tone.
+      return {
+        border: "border-rose-400/70 ring-1 ring-rose-400/30",
+        badge: "bg-rose-600 text-white hover:bg-rose-700",
+        text: "text-rose-700 dark:text-rose-300",
+        ring: "stroke-rose-600",
+      };
     case "empty":
       return {
         border: "border-border",
