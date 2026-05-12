@@ -125,7 +125,7 @@ export function ScreenAOutlook({
                 </div>
                 <div className="summary-stat">
                   <div className="lbl">PREDICTED PEAK HR</div>
-                  <div className="val">{peak.label}</div>
+                  <div className="val">{formatHourPretty(11 + peakIdx)}</div>
                   <div className="delta">
                     ~ {peak.wings} wings · {Math.round(peak.wings / state.config.wingsPerLb)} lbs
                   </div>
@@ -254,6 +254,13 @@ export function ScreenAOutlook({
       </p>
     </>
   );
+}
+
+/** Format a 24h hour as "11 AM", "7 PM" — used in the peak-hour summary stat. */
+function formatHourPretty(hour: number): string {
+  const h = ((hour - 1) % 12) + 1;
+  const ampm = hour < 12 ? "AM" : "PM";
+  return `${h} ${ampm}`;
 }
 
 function Trigger({ icon, text, when }: { icon: string; text: string; when: string }) {

@@ -8,7 +8,7 @@ export interface PredropAnalysis {
   verdict: string;
   /** is the recommendation urgent? */
   urgent: boolean;
-  /** lbs of cooked product currently accessible (holding bin + ready baskets) */
+  /** lbs of cooked product sitting in READY baskets, ready to deplete */
   readyLbs: number;
   /** lbs of cooking product on the way (frying baskets) */
   cookingLbs: number;
@@ -20,15 +20,15 @@ export function analyzePredrop(
   state: WingsPersistedStateV1,
   forecast: ForecastResult,
 ): PredropAnalysis {
-  const { baskets, holdingBin, config } = state;
-  const readyBasketLbs = baskets
+  const { baskets, config } = state;
+  // Wings stay in their basket once cooked — READY baskets ARE the holding pool.
+  const readyLbs = baskets
     .filter((b) => b.status === "ready")
     .reduce((sum, b) => sum + b.weightLbs, 0);
   const cookingLbs = baskets
     .filter((b) => b.status === "frying")
     .reduce((sum, b) => sum + b.weightLbs, 0);
 
-  const readyLbs = holdingBin.weightLbs + readyBasketLbs;
   const next = forecast.buckets[1] ?? forecast.buckets[0];
   const nextBucketLbs = next ? next.projectedLbs : 0;
 

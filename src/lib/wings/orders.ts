@@ -83,30 +83,74 @@ export function arriveOrders(
 }
 
 /**
- * Try to fulfill queued orders from holding-bin lbs first. Returns mutated
- * holding lbs and the orders to mark as served (with servedAtMs set).
+ * Try to fulfill queued orders by depleting READY baskets (oldest first).
+ * Wings sit in their basket after cooking — KDS depletes them in place,
+ * and a basket transitions to EMPTY when its weight drops below the
+ * EMPTY_THRESHOLD_LBS floor (treated as essentially zero).
+ *
+ * Returns the orders served + the next baskets array.
  */
-export function fulfillFromHolding(
+const EMPTY_THRESHOLD_LBS = 0.1;
+
+import type { FryerBasket } from "@/lib/wings/types";
+
+export function fulfillFromReadyBaskets(
   ordersOpen: WingOrder[],
-  holdingLbs: number,
+  baskets: FryerBasket[],
   nowMs: number,
-): { fulfilled: WingOrder[]; remainingHoldingLbs: number; remainingOpen: WingOrder[] } {
+): {
+  fulfilled: WingOrder[];
+  remainingOpen: WingOrder[];
+  nextBaskets: FryerBasket[];
+} {
   const fulfilled: WingOrder[] = [];
   const remainingOpen: WingOrder[] = [];
-  let pool = holdingLbs;
+
+  // Mutate a working copy of baskets so we can deplete weight in place
+  const working = baskets.map((b) => ({ ...b }));
+
+  // Order ready baskets by oldest start time first (FIFO)
+  const readyIdx = working
+    .map((b, i) => ({ b, i }))
+    .filter(({ b }) => b.status === "ready" && b.weightLbs > 0)
+    .sort((a, b) => (a.b.startedAtMs ?? 0) - (b.b.startedAtMs ?? 0))
+    .map(({ i }) => i);
+
   for (const order of ordersOpen) {
     if (order.status !== "queued") {
       remainingOpen.push(order);
       continue;
     }
-    if (pool >= order.weightLbs) {
-      pool -= order.weightLbs;
+    // Try to fulfill across one or more baskets if needed
+    let remaining = order.weightLbs;
+    let consumed = 0;
+    for (const i of readyIdx) {
+      if (remaining <= 0) break;
+      const basket = working[i];
+      if (basket.status !== "ready" || basket.weightLbs <= 0) continue;
+      const take = Math.min(remaining, basket.weightLbs);
+      basket.weightLbs = Math.max(0, basket.weightLbs - take);
+      consumed += take;
+      remaining -= take;
+      // Drop basket to EMPTY when essentially drained
+      if (basket.weightLbs <= EMPTY_THRESHOLD_LBS) {
+        basket.status = "empty";
+        basket.weightLbs = 0;
+        basket.startedAtMs = null;
+        basket.elapsedSeconds = 0;
+        basket.pulledAtMs = null;
+        basket.shortfallSeconds = 0;
+      }
+    }
+    if (consumed >= order.weightLbs - EMPTY_THRESHOLD_LBS) {
       fulfilled.push({ ...order, status: "served", servedAtMs: nowMs });
     } else {
+      // Couldn't fully fulfill — leave on the queue
       remainingOpen.push(order);
     }
   }
-  return { fulfilled, remainingHoldingLbs: pool, remainingOpen };
+
+  return { fulfilled, remainingOpen, nextBaskets: working };
 }
 
 /** Average order→served latency in seconds across recent closed orders. */

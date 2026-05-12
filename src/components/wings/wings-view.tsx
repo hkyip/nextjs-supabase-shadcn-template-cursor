@@ -18,7 +18,7 @@ import { createInitialWingsState } from "@/lib/wings/mock-seed";
 import {
   arriveOrders,
   avgServiceTimeSeconds,
-  fulfillFromHolding,
+  fulfillFromReadyBaskets,
 } from "@/lib/wings/orders";
 import {
   createWingsInitialState,
@@ -256,50 +256,63 @@ export function WingsView() {
         };
       }
 
-      // Normal pull / overcooked-pull — wings move to bin, basket clears.
+      // Pull from FRYING within the SOP window → basket transitions to READY
+      // (wings stay in basket, KDS depletes them). Pull from OVERCOOK → wings
+      // discarded, basket goes EMPTY (quality violation).
+      if (isOvercookedPull) {
+        const over = elapsed - cookSeconds;
+        setVisionToast((p) => ({
+          key: p.key + 1,
+          msg: `⚠ B${idx} pulled overcooked · ${formatDuration(over)} past 7:30 · wings discarded`,
+        }));
+        const baskets = prev.baskets.map<FryerBasket>((b) =>
+          b.id === basketId
+            ? {
+                ...b,
+                status: "empty",
+                weightLbs: 0,
+                startedAtMs: null,
+                elapsedSeconds: 0,
+                pulledAtMs: null,
+                shortfallSeconds: 0,
+              }
+            : b,
+        );
+        return {
+          ...prev,
+          baskets,
+          adherence: { ...prev.adherence, cookPercent: newCookPercent },
+          kpis: {
+            ...prev.kpis,
+            overcookedPulls: prev.kpis.overcookedPulls + 1,
+          },
+        };
+      }
+
+      // Normal pull from FRYING (within SOP window) → READY. Wings sit in
+      // basket for KDS to deplete; basket stays visible with its count.
       const baskets = prev.baskets.map<FryerBasket>((b) =>
         b.id === basketId
           ? {
               ...b,
-              status: "empty",
-              weightLbs: 0,
-              startedAtMs: null,
-              elapsedSeconds: 0,
+              status: "ready",
+              // Mark the pull moment in startedAtMs so FIFO ordering for KDS
+              // fulfillment is correct (oldest pulled basket served first).
+              startedAtMs: Date.now(),
+              elapsedSeconds: cookSeconds,
               pulledAtMs: null,
               shortfallSeconds: 0,
             }
           : b,
       );
-      const newOldest =
-        prev.holdingBin.weightLbs > 0
-          ? prev.holdingBin.oldestBatchAtMs
-          : Date.now();
-
-      if (isOvercookedPull) {
-        const over = elapsed - cookSeconds;
-        setVisionToast((p) => ({
-          key: p.key + 1,
-          msg: `⚠ B${idx} pulled overcooked · ${formatDuration(over)} past 7:30`,
-        }));
-      }
-
+      setVisionToast((p) => ({
+        key: p.key + 1,
+        msg: `Vision AI confirmed B${idx} pull · ${basket.weightLbs.toFixed(1)} lb on rest`,
+      }));
       return {
         ...prev,
         baskets,
-        holdingBin: {
-          ...prev.holdingBin,
-          weightLbs: Math.min(
-            prev.holdingBin.capacityLbs,
-            prev.holdingBin.weightLbs + basket.weightLbs,
-          ),
-          oldestBatchAtMs: newOldest,
-        },
         adherence: { ...prev.adherence, cookPercent: newCookPercent },
-        kpis: {
-          ...prev.kpis,
-          overcookedPulls:
-            prev.kpis.overcookedPulls + (isOvercookedPull ? 1 : 0),
-        },
       };
     });
   }, []);
@@ -577,7 +590,9 @@ function advanceWingsSimulation(
   const { config } = prev;
   const simSeconds = Math.min(60, (elapsedMs / 1000) * config.simulationSpeed);
 
-  const baskets = prev.baskets.map((b) => tickBasket(b, config, simSeconds));
+  const tickedBaskets = prev.baskets.map((b) =>
+    tickBasket(b, config, simSeconds),
+  );
 
   const { newOrders, remainderFraction } = arriveOrders(
     prev,
@@ -588,15 +603,15 @@ function advanceWingsSimulation(
   setOrderRemainder(remainderFraction);
 
   const ordersOpenWithNew = [...prev.ordersOpen, ...newOrders];
-  const { fulfilled, remainingHoldingLbs, remainingOpen } = fulfillFromHolding(
-    ordersOpenWithNew,
-    prev.holdingBin.weightLbs,
-    nowMs,
-  );
+  // Wings deplete directly from READY baskets (oldest first). When a basket
+  // is drained below the empty threshold, it transitions to EMPTY.
+  const { fulfilled, remainingOpen, nextBaskets: baskets } =
+    fulfillFromReadyBaskets(ordersOpenWithNew, tickedBaskets, nowMs);
 
-  const newHoldingLbs = remainingHoldingLbs;
-  const newOldest =
-    newHoldingLbs <= 0 ? null : prev.holdingBin.oldestBatchAtMs ?? nowMs;
+  // holdingBin retained in state for schema back-compat but no longer used
+  // as a fulfillment buffer — wings hold in their basket instead.
+  const newHoldingLbs = 0;
+  const newOldest = null;
 
   const ordersOpen = remainingOpen.map<WingOrder>((o) => {
     const elapsedS = (nowMs - o.placedAtMs) / 1000;

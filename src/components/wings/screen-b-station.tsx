@@ -313,11 +313,9 @@ function FryerCard({
             <div className="fryer-lbl">wings on rest</div>
             <div className="fryer-cam">
               <span className="dot" />
-              SAUCE &amp; SERVE
+              SAUCE &amp; SERVE · KDS depletes
             </div>
-            <button className="pull-btn" type="button" onClick={onPull}>
-              MOVE TO HOLD<span className="mic">🎤 voice</span>
-            </button>
+            <div className="hold-mark">· · ·</div>
           </>
         ) : isOvercook ? (
           <>
