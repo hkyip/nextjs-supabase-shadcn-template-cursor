@@ -11,6 +11,7 @@ interface Props {
   onDrop: (basketId: string, lbs: number) => void;
   onPull: (basketId: string) => void;
   onRedrop: (basketId: string) => void;
+  onPullOrder: (basketId: string) => void;
 }
 
 export function ScreenBStation({
@@ -20,6 +21,7 @@ export function ScreenBStation({
   onDrop,
   onPull,
   onRedrop,
+  onPullOrder,
 }: Props) {
   const { config } = state;
 
@@ -44,6 +46,15 @@ export function ScreenBStation({
   const undercookedBaskets = state.baskets.filter(
     (b) => b.status === "undercooked",
   );
+
+  // Next queued order — drives the per-basket PULL N button on READY cards.
+  const nextOrder = state.ordersOpen.find((o) => o.status === "queued");
+  const nextOrderWings = nextOrder
+    ? Math.round(nextOrder.weightLbs * config.wingsPerLb)
+    : 0;
+  const nextOrderId = nextOrder
+    ? nextOrder.id.split("-").pop() ?? ""
+    : "";
 
   // Drop recommendations land on the first empty basket
   const dropRecommendationsByBasketId = new Map<string, number>();
@@ -149,9 +160,12 @@ export function ScreenBStation({
                 cookOvershootSeconds={config.cookOvershootSeconds}
                 wingsPerLb={config.wingsPerLb}
                 recommendedWings={dropRecommendationsByBasketId.get(b.id)}
+                nextOrderWings={nextOrderWings}
+                nextOrderId={nextOrderId}
                 onDrop={() => onDrop(b.id, config.basketCapacityLbs)}
                 onPull={() => onPull(b.id)}
                 onRedrop={() => onRedrop(b.id)}
+                onPullOrder={() => onPullOrder(b.id)}
               />
             ))}
           </div>
@@ -203,9 +217,12 @@ interface CardProps {
   cookOvershootSeconds: number;
   wingsPerLb: number;
   recommendedWings?: number;
+  nextOrderWings: number;
+  nextOrderId: string;
   onDrop: () => void;
   onPull: () => void;
   onRedrop: () => void;
+  onPullOrder: () => void;
 }
 
 function FryerCard({
@@ -214,9 +231,12 @@ function FryerCard({
   cookOvershootSeconds,
   wingsPerLb,
   recommendedWings,
+  nextOrderWings,
+  nextOrderId,
   onDrop,
   onPull,
   onRedrop,
+  onPullOrder,
 }: CardProps) {
   const isFrying = basket.status === "frying";
   const isReady = basket.status === "ready";
@@ -315,6 +335,23 @@ function FryerCard({
               <span className="dot" />
               SAUCE &amp; SERVE
             </div>
+            {nextOrderWings > 0 && wings > 0 ? (
+              <>
+                <div className="next-order">
+                  ↳ #{nextOrderId} · {nextOrderWings} wings needed
+                </div>
+                <button
+                  className="pull-btn"
+                  type="button"
+                  onClick={onPullOrder}
+                >
+                  PULL {Math.min(wings, nextOrderWings)}
+                  <span className="mic">🎤 voice</span>
+                </button>
+              </>
+            ) : (
+              <div className="hold-mark">no orders queued</div>
+            )}
           </>
         ) : isOvercook ? (
           <>

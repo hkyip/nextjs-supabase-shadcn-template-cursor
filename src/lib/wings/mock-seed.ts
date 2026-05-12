@@ -88,26 +88,20 @@ function seedBasketsForScenario(
     return baskets;
   }
   if (scenario === "pre-rush") {
-    // B1 cooking (mid), B2 in state 4 (wings on rest), rest empty.
-    if (baskets[0]) {
-      baskets[0] = {
-        ...baskets[0],
-        status: "frying",
-        weightLbs: config.basketCapacityLbs,
-        startedAtMs: nowMs - 90_000,
-        elapsedSeconds: 90,
-      };
-    }
-    if (baskets[1]) {
-      // State 4 — pulled, on rest. 2.25 lb = 18 wings (matches artifact).
-      baskets[1] = {
-        ...baskets[1],
-        status: "ready",
-        weightLbs: 2.25,
-        startedAtMs: nowMs - 20_000,
+    // All four baskets seeded in state 4 (wings on rest) with varied counts,
+    // so the operator can demo PULL-to-fulfill from any fryer.
+    // Counts: 18 / 20 / 14 / 24 wings.
+    const readyAt = (lbs: number, agedMs: number) =>
+      ({
+        status: "ready" as const,
+        weightLbs: lbs,
+        startedAtMs: nowMs - agedMs,
         elapsedSeconds: config.cookSeconds,
-      };
-    }
+      });
+    if (baskets[0]) baskets[0] = { ...baskets[0], ...readyAt(2.25, 45_000) }; // 18
+    if (baskets[1]) baskets[1] = { ...baskets[1], ...readyAt(2.5, 30_000) };  // 20
+    if (baskets[2]) baskets[2] = { ...baskets[2], ...readyAt(1.75, 15_000) }; // 14
+    if (baskets[3]) baskets[3] = { ...baskets[3], ...readyAt(3.0, 10_000) };  // 24
     return baskets;
   }
   // peak — mirrors the artifact wireframe composition + showcases all four states:
@@ -121,26 +115,29 @@ function seedBasketsForScenario(
       elapsedSeconds: 3 * 60, // ~4:30 remaining
     };
   if (baskets[1])
-    // State 4: pulled, on rest, sauce & serve. Seeded with 2.25 lb = 18 wings,
-    // matching the artifact's reference card exactly.
     baskets[1] = {
       ...baskets[1],
       status: "ready",
-      weightLbs: 2.25,
-      startedAtMs: nowMs - 30_000, // pulled 30s ago
+      weightLbs: 2.25, // 18 wings — artifact reference card
+      startedAtMs: nowMs - 30_000,
       elapsedSeconds: config.cookSeconds,
     };
   if (baskets[2])
-    // Near pull time — operator can click PULL NOW within ~40s (or trigger
-    // an early-pull violation immediately to demo state 3b).
     baskets[2] = {
       ...baskets[2],
-      status: "frying",
-      weightLbs: config.basketCapacityLbs,
-      startedAtMs: nowMs - (6 * 60 + 50) * 1000,
-      elapsedSeconds: 6 * 60 + 50, // ~0:40 remaining
+      status: "ready",
+      weightLbs: 1.75, // 14 wings
+      startedAtMs: nowMs - 60_000,
+      elapsedSeconds: config.cookSeconds,
     };
-  // F4 stays empty — predrop logic will offer a drop recommendation
+  if (baskets[3])
+    baskets[3] = {
+      ...baskets[3],
+      status: "ready",
+      weightLbs: 2.75, // 22 wings
+      startedAtMs: nowMs - 10_000,
+      elapsedSeconds: config.cookSeconds,
+    };
   return baskets;
 }
 

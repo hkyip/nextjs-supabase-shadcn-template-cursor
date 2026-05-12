@@ -18,7 +18,6 @@ import { createInitialWingsState } from "@/lib/wings/mock-seed";
 import {
   arriveOrders,
   avgServiceTimeSeconds,
-  fulfillFromReadyBaskets,
 } from "@/lib/wings/orders";
 import {
   createWingsInitialState,
@@ -317,6 +316,85 @@ export function WingsView() {
     });
   }, []);
 
+  /** Cook pulls wings from a READY basket toward the next queued order.
+   *  Supports partial fulfillment — if the basket has fewer wings than the
+   *  order needs, pulls what's available and leaves the order in queue with
+   *  the remaining weight reduced. Cook can then pull from another basket. */
+  const onPullOrder = useCallback((basketId: string) => {
+    setState((prev) => {
+      const basket = prev.baskets.find((b) => b.id === basketId);
+      if (!basket || basket.status !== "ready" || basket.weightLbs <= 0) {
+        return prev;
+      }
+      const order = prev.ordersOpen.find((o) => o.status === "queued");
+      if (!order) return prev;
+
+      const EMPTY_THRESHOLD = 0.1;
+      const pullLbs = Math.min(basket.weightLbs, order.weightLbs);
+      const newBasketWeight = Math.max(0, basket.weightLbs - pullLbs);
+      const newOrderRemaining = Math.max(0, order.weightLbs - pullLbs);
+      const draining = newBasketWeight <= EMPTY_THRESHOLD;
+      const orderSatisfied = newOrderRemaining <= EMPTY_THRESHOLD;
+
+      const nowMs = Date.now();
+      const baskets = prev.baskets.map<FryerBasket>((b) =>
+        b.id === basketId
+          ? draining
+            ? {
+                ...b,
+                status: "empty",
+                weightLbs: 0,
+                startedAtMs: null,
+                elapsedSeconds: 0,
+                pulledAtMs: null,
+                shortfallSeconds: 0,
+              }
+            : { ...b, weightLbs: newBasketWeight }
+          : b,
+      );
+
+      let ordersOpen = prev.ordersOpen;
+      let ordersClosed = prev.ordersClosed;
+      const dineinFulfilled =
+        orderSatisfied && order.channel === "dine-in" ? 1 : 0;
+      if (orderSatisfied) {
+        ordersOpen = ordersOpen.filter((o) => o.id !== order.id);
+        ordersClosed = [
+          ...ordersClosed,
+          { ...order, status: "served" as const, servedAtMs: nowMs },
+        ].slice(-60);
+      } else {
+        // Partial fulfillment — keep order in queue with reduced weight so
+        // the next basket pull can finish it off.
+        ordersOpen = ordersOpen.map((o) =>
+          o.id === order.id ? { ...o, weightLbs: newOrderRemaining } : o,
+        );
+      }
+
+      const wingsSold = pullLbs * prev.config.wingsPerLb;
+      const idx = basket.index + 1;
+      const pulledWings = Math.round(pullLbs * prev.config.wingsPerLb);
+      const orderShortId = order.id.split("-").pop();
+      setVisionToast((p) => ({
+        key: p.key + 1,
+        msg: orderSatisfied
+          ? `Pulled ${pulledWings} wings from B${idx} · order #${orderShortId} served`
+          : `Pulled ${pulledWings} wings from B${idx} · order #${orderShortId} still needs ${Math.round(newOrderRemaining * prev.config.wingsPerLb)} more`,
+      }));
+      return {
+        ...prev,
+        baskets,
+        ordersOpen,
+        ordersClosed,
+        wingsSoldToday: prev.wingsSoldToday + wingsSold,
+        kpis: {
+          ...prev.kpis,
+          dineinServed: prev.kpis.dineinServed + dineinFulfilled,
+        },
+      };
+    });
+  }, []);
+
   /** Restart cook from 0 after an undercooked pull. */
   const onRedropBasket = useCallback((basketId: string) => {
     setState((prev) => {
@@ -498,6 +576,7 @@ export function WingsView() {
             onDrop={onDropBasket}
             onPull={onPullBasket}
             onRedrop={onRedropBasket}
+            onPullOrder={onPullOrder}
           />
         ) : null}
         {activeScreen === "c" ? (
@@ -590,9 +669,7 @@ function advanceWingsSimulation(
   const { config } = prev;
   const simSeconds = Math.min(60, (elapsedMs / 1000) * config.simulationSpeed);
 
-  const tickedBaskets = prev.baskets.map((b) =>
-    tickBasket(b, config, simSeconds),
-  );
+  const baskets = prev.baskets.map((b) => tickBasket(b, config, simSeconds));
 
   const { newOrders, remainderFraction } = arriveOrders(
     prev,
@@ -602,18 +679,16 @@ function advanceWingsSimulation(
   );
   setOrderRemainder(remainderFraction);
 
-  const ordersOpenWithNew = [...prev.ordersOpen, ...newOrders];
-  // Wings deplete directly from READY baskets (oldest first). When a basket
-  // is drained below the empty threshold, it transitions to EMPTY.
-  const { fulfilled, remainingOpen, nextBaskets: baskets } =
-    fulfillFromReadyBaskets(ordersOpenWithNew, tickedBaskets, nowMs);
+  // Orders sit in the queue until the cook manually pulls wings from a READY
+  // basket to fulfill them (onPullOrder handler). No auto-fulfillment here.
+  const fulfilled: WingOrder[] = [];
 
-  // holdingBin retained in state for schema back-compat but no longer used
-  // as a fulfillment buffer — wings hold in their basket instead.
+  // holdingBin retained in state for schema back-compat but no longer used.
   const newHoldingLbs = 0;
   const newOldest = null;
 
-  const ordersOpen = remainingOpen.map<WingOrder>((o) => {
+  // Roll SLA-breached queued orders into missed-sla status.
+  const ordersOpen = [...prev.ordersOpen, ...newOrders].map<WingOrder>((o) => {
     const elapsedS = (nowMs - o.placedAtMs) / 1000;
     if (o.status === "queued" && elapsedS > o.slaSeconds) {
       return { ...o, status: "missed-sla" };
