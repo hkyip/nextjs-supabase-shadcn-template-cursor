@@ -236,6 +236,50 @@
   line-height: 1.5;
 }
 
+/* Food-safety violation banner — appears above demand strip when any basket undercooked */
+.stl-wires .food-safety-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgb(185, 28, 28);
+  border: 2px solid rgb(127, 29, 29);
+  color: rgb(255, 255, 255);
+  padding: 12px 18px;
+  margin-bottom: 14px;
+  animation: stl-fsb-pulse 1.6s ease-in-out infinite;
+}
+@keyframes stl-fsb-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55); }
+  50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+}
+.stl-wires .food-safety-banner .fsb-mark {
+  font-size: 26px;
+  line-height: 1;
+}
+.stl-wires .food-safety-banner .fsb-body { flex: 1; }
+.stl-wires .food-safety-banner .fsb-ttl {
+  font-size: 11px;
+  letter-spacing: 2px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 2px;
+}
+.stl-wires .food-safety-banner .fsb-msg {
+  font-size: 14px;
+  font-weight: 600;
+}
+.stl-wires .food-safety-banner .fsb-action {
+  font-size: 11px;
+  letter-spacing: 1px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+.stl-wires .food-safety-banner .fsb-action strong {
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
 /* SCREEN B — Live station */
 .stl-wires .demand-strip {
   border: 2px solid rgb(17, 24, 39);
@@ -284,7 +328,25 @@
 .stl-wires .fryer-num.dim { color: rgb(209, 213, 219); font-size: 48px; }
 .stl-wires .fryer-lbl { font-size: 10px; color: rgb(107, 114, 128); letter-spacing: 1.5px; margin-bottom: 14px; text-transform: uppercase; }
 .stl-wires .fryer-timer { font-size: 22px; font-weight: 600; font-family: Menlo, Consolas, monospace; color: rgb(17, 24, 39); margin-bottom: 2px; letter-spacing: 1px; }
-.stl-wires .fryer-timer.overcooked { color: rgb(255, 255, 255); background: rgb(217, 119, 6); padding: 4px 12px; font-size: 24px; }
+.stl-wires .fryer-timer.overcooked {
+  color: rgb(255, 255, 255);
+  background: rgb(217, 119, 6);
+  padding: 4px 12px;
+  font-size: 24px;
+  animation: stl-overcook-pulse 1.2s ease-in-out infinite;
+}
+@keyframes stl-overcook-pulse {
+  0%, 100% { background: rgb(217, 119, 6); box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.55); }
+  50% { background: rgb(234, 142, 24); box-shadow: 0 0 0 6px rgba(217, 119, 6, 0); }
+}
+
+.stl-wires .fryer.overcooked {
+  animation: stl-overcook-border 1.5s ease-in-out infinite;
+}
+@keyframes stl-overcook-border {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
+  50% { box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.35); }
+}
 .stl-wires .fryer-cam { font-size: 9px; color: rgb(107, 114, 128); letter-spacing: 1.2px; margin-top: 4px; }
 .stl-wires .fryer-cam .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: rgb(17, 24, 39); margin-right: 4px; vertical-align: middle; }
 .stl-wires .fryer-cam.overcooked-cam { color: rgb(146, 64, 14); font-weight: 600; }
@@ -765,6 +827,12 @@
 .dark .stl-wires .violation-msg { color: rgb(248, 113, 113); }
 .dark .stl-wires .violation-detail { color: rgb(252, 165, 165); }
 .dark .stl-wires .redrop-btn { background: rgb(220, 38, 38); border-color: rgb(220, 38, 38); }
+
+/* Food-safety banner — dark mode keeps red prominent but adapts border */
+.dark .stl-wires .food-safety-banner {
+  background: rgb(153, 27, 27);
+  border-color: rgb(220, 38, 38);
+}
 
 /* Violations counter */
 .dark .stl-wires .violations-line {

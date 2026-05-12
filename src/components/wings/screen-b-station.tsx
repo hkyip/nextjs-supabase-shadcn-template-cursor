@@ -40,6 +40,11 @@ export function ScreenBStation({
     ((totalCycles - violationCount) / totalCycles) * 100,
   );
 
+  // Active food-safety violations: any basket currently in UNDERCOOKED state.
+  const undercookedBaskets = state.baskets.filter(
+    (b) => b.status === "undercooked",
+  );
+
   // Drop recommendations land on the first empty basket
   const dropRecommendationsByBasketId = new Map<string, number>();
   if (predrop.recommendedLbs > 0) {
@@ -79,6 +84,27 @@ export function ScreenBStation({
         </div>
 
         <div className="main">
+          {undercookedBaskets.length > 0 ? (
+            <div
+              className="food-safety-banner"
+              role="alert"
+              aria-live="assertive"
+            >
+              <div className="fsb-mark">⚠</div>
+              <div className="fsb-body">
+                <div className="fsb-ttl">FOOD SAFETY VIOLATION</div>
+                <div className="fsb-msg">
+                  {undercookedBaskets.length === 1
+                    ? `B${undercookedBaskets[0].index + 1} pulled before 7:30 — wings must be re-dropped before serving.`
+                    : `${undercookedBaskets.length} baskets pulled before 7:30 — wings must be re-dropped before serving.`}
+                </div>
+              </div>
+              <div className="fsb-action">
+                Action: <strong>RE-DROP IMMEDIATELY</strong>
+              </div>
+            </div>
+          ) : null}
+
           <div className="demand-strip">
             <div className="demand-cell">
               <div className="lbl">WAITING TO SERVE</div>

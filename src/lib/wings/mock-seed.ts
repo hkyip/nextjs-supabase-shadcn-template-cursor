@@ -105,31 +105,33 @@ function seedBasketsForScenario(
     }
     return baskets;
   }
-  // peak — three baskets active, one ready
+  // peak — mirrors the artifact wireframe composition exactly:
+  // F1 cooking (mid) · F2 ready · F3 cooking (different time, PULL NOW visible) · F4 idle
   if (baskets[0])
     baskets[0] = {
       ...baskets[0],
       status: "frying",
       weightLbs: config.basketCapacityLbs,
-      startedAtMs: nowMs - 5 * 60_000,
-      elapsedSeconds: 5 * 60,
+      startedAtMs: nowMs - 3 * 60_000,
+      elapsedSeconds: 3 * 60, // ~4:30 remaining
     };
   if (baskets[1])
     baskets[1] = {
       ...baskets[1],
-      status: "frying",
-      weightLbs: config.basketCapacityLbs,
-      startedAtMs: nowMs - 2 * 60_000,
-      elapsedSeconds: 2 * 60,
-    };
-  if (baskets[2])
-    baskets[2] = {
-      ...baskets[2],
       status: "ready",
       weightLbs: config.basketCapacityLbs,
       startedAtMs: nowMs - 8 * 60_000,
       elapsedSeconds: config.cookSeconds,
     };
+  if (baskets[2])
+    baskets[2] = {
+      ...baskets[2],
+      status: "frying",
+      weightLbs: config.basketCapacityLbs,
+      startedAtMs: nowMs - 90_000,
+      elapsedSeconds: 90, // ~6:00 remaining — second active PULL NOW button visible
+    };
+  // F4 stays empty (idle) — drop recommendation card path renders if predrop suggests it
   return baskets;
 }
 
