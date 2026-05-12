@@ -1,0 +1,798 @@
+/* Wireframe design system lifted from the St. Louis Wings UI artifact.
+ * Scoped via .stl-wires so it doesn't bleed into the rest of the app. */
+
+.stl-wires {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  background: rgb(243, 244, 246);
+  color: rgb(17, 24, 39);
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+}
+.stl-wires *,
+.stl-wires *::before,
+.stl-wires *::after {
+  box-sizing: border-box;
+}
+
+.stl-wires .header-block { text-align: center; max-width: 880px; }
+.stl-wires .header-block h1 { font-size: 22px; font-weight: 600; color: rgb(17, 24, 39); margin-bottom: 4px; }
+.stl-wires .header-block p { font-size: 13px; color: rgb(107, 114, 128); }
+
+.stl-wires .tablet {
+  width: 1080px;
+  max-width: 100%;
+  background: rgb(255, 255, 255);
+  border: 2px solid rgb(107, 114, 128);
+  border-radius: 4px;
+  box-shadow: rgba(0, 0, 0, 0.08) 0 4px 16px;
+  overflow: hidden;
+}
+
+.stl-wires .header {
+  background: rgb(249, 250, 251);
+  border-bottom: 1px solid rgb(209, 213, 219);
+  padding: 10px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: rgb(55, 65, 81);
+}
+.stl-wires .header .center { color: rgb(107, 114, 128); font-weight: 500; }
+.stl-wires .header .user { color: rgb(107, 114, 128); }
+
+.stl-wires .main { padding: 20px 22px 22px; }
+
+/* Screen meta strip */
+.stl-wires .screen-meta {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  width: 1080px;
+  max-width: 100%;
+  margin-bottom: -10px;
+}
+.stl-wires .screen-meta .num {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: rgb(107, 114, 128);
+  background: rgb(255, 255, 255);
+  border: 1px solid rgb(156, 163, 175);
+  padding: 3px 8px;
+}
+.stl-wires .screen-meta .name { font-size: 13px; font-weight: 600; color: rgb(17, 24, 39); letter-spacing: 0.5px; }
+.stl-wires .screen-meta .when { font-size: 11px; color: rgb(156, 163, 175); margin-left: auto; }
+
+/* Tab nav */
+.stl-tabs {
+  width: 1080px;
+  max-width: 100%;
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid rgb(209, 213, 219);
+}
+.stl-tab {
+  flex: 1 1 0;
+  text-align: left;
+  padding: 10px 14px;
+  background: rgb(255, 255, 255);
+  border: 1px solid rgb(209, 213, 219);
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  font-size: 12px;
+  color: rgb(107, 114, 128);
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.stl-tab .num { font-size: 10px; letter-spacing: 1.5px; color: rgb(156, 163, 175); display: block; }
+.stl-tab .ttl { font-weight: 600; color: rgb(55, 65, 81); }
+.stl-tab[aria-selected="true"] {
+  background: rgb(17, 24, 39);
+  border-color: rgb(17, 24, 39);
+}
+.stl-tab[aria-selected="true"] .num { color: rgb(156, 163, 175); }
+.stl-tab[aria-selected="true"] .ttl { color: rgb(255, 255, 255); }
+
+/* Outlook banner */
+.stl-wires .outlook-banner {
+  border: 2px solid rgb(17, 24, 39);
+  background: rgb(249, 250, 251);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.stl-wires .outlook-banner .ttl { font-size: 10px; color: rgb(107, 114, 128); letter-spacing: 1.5px; margin-bottom: 2px; }
+.stl-wires .outlook-banner .msg { font-size: 16px; font-weight: 600; color: rgb(17, 24, 39); }
+.stl-wires .outlook-banner .badge {
+  margin-left: auto;
+  background: rgb(17, 24, 39);
+  color: rgb(255, 255, 255);
+  padding: 6px 14px;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+}
+
+.stl-wires .panel { border: 1px solid rgb(156, 163, 175); background: rgb(255, 255, 255); }
+.stl-wires .panel-header {
+  border-bottom: 1px solid rgb(209, 213, 219);
+  padding: 10px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.stl-wires .panel-header .h { font-size: 12px; font-weight: 600; color: rgb(17, 24, 39); letter-spacing: 0.5px; }
+.stl-wires .panel-header .sub { font-size: 11px; color: rgb(107, 114, 128); }
+.stl-wires .panel-body { padding: 16px; }
+
+.stl-wires .chart-summary {
+  display: flex;
+  gap: 32px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed rgb(209, 213, 219);
+}
+.stl-wires .summary-stat .lbl { font-size: 10px; color: rgb(107, 114, 128); letter-spacing: 1.2px; margin-bottom: 2px; }
+.stl-wires .summary-stat .val { font-size: 22px; font-weight: 600; color: rgb(17, 24, 39); }
+.stl-wires .summary-stat .delta { font-size: 11px; color: rgb(107, 114, 128); margin-top: 2px; }
+
+.stl-wires .chart {
+  position: relative;
+  height: 200px;
+  border-bottom: 1px solid rgb(107, 114, 128);
+  border-left: 1px solid rgb(107, 114, 128);
+  margin: 0 0 6px 36px;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 4px;
+}
+.stl-wires .y-axis { position: absolute; left: -38px; top: 0; bottom: 0; width: 32px; }
+.stl-wires .y-tick { position: absolute; right: 4px; font-size: 9px; line-height: 1; color: rgb(156, 163, 175); }
+.stl-wires .grid-line { position: absolute; left: 0; right: 0; height: 1px; border-top: 1px dashed rgb(229, 231, 235); }
+.stl-wires .bar-group { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; justify-content: center; position: relative; }
+.stl-wires .bar { width: 70%; background: rgb(209, 213, 219); border: 1px solid rgb(107, 114, 128); position: relative; }
+.stl-wires .bar.med { background: rgb(156, 163, 175); border-color: rgb(75, 85, 99); }
+.stl-wires .bar.peak { background: rgb(107, 114, 128); border-color: rgb(17, 24, 39); }
+.stl-wires .bar-label { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 9px; color: rgb(107, 114, 128); white-space: nowrap; }
+.stl-wires .x-axis { margin-left: 36px; display: flex; padding: 0 4px; }
+.stl-wires .x-tick { flex: 1 1 0; text-align: center; font-size: 9px; color: rgb(107, 114, 128); padding-top: 4px; }
+
+.stl-wires .daypart-strip {
+  margin-top: 14px;
+  margin-left: 36px;
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 3fr 1.5fr;
+  border: 1px solid rgb(209, 213, 219);
+  font-size: 10px;
+}
+.stl-wires .daypart { padding: 8px 10px; border-right: 1px solid rgb(209, 213, 219); text-align: center; }
+.stl-wires .daypart:last-child { border-right: none; }
+.stl-wires .daypart .name { color: rgb(107, 114, 128); letter-spacing: 1px; font-size: 9px; margin-bottom: 2px; }
+.stl-wires .daypart .qty { font-size: 13px; font-weight: 600; color: rgb(17, 24, 39); }
+.stl-wires .daypart.peak { background: rgb(243, 244, 246); }
+.stl-wires .daypart.peak .name { color: rgb(17, 24, 39); font-weight: 600; }
+
+.stl-wires .triggers { margin-top: 14px; border: 1px dashed rgb(107, 114, 128); padding: 10px 14px; background: rgb(249, 250, 251); }
+.stl-wires .triggers .h { font-size: 10px; color: rgb(107, 114, 128); letter-spacing: 1.2px; margin-bottom: 6px; }
+.stl-wires .trigger-row { display: flex; gap: 10px; align-items: center; font-size: 12px; color: rgb(17, 24, 39); padding: 3px 0; }
+.stl-wires .trigger-row .icon {
+  width: 16px; height: 16px;
+  border: 1px solid rgb(107, 114, 128);
+  background: rgb(255, 255, 255);
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  font-size: 9px; color: rgb(107, 114, 128);
+  flex-shrink: 0;
+}
+.stl-wires .trigger-row .when { color: rgb(107, 114, 128); font-size: 11px; margin-left: auto; }
+
+.stl-wires .yesterday-strip { margin-top: 18px; border: 1px solid rgb(156, 163, 175); background: rgb(255, 255, 255); }
+.stl-wires .yesterday-strip .panel-header { background: rgb(249, 250, 251); }
+.stl-wires .recap-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+.stl-wires .recap-stat { padding: 14px 18px; border-right: 1px solid rgb(229, 231, 235); }
+.stl-wires .recap-stat:last-child { border-right: none; }
+.stl-wires .recap-stat .lbl { font-size: 10px; color: rgb(107, 114, 128); letter-spacing: 1.2px; margin-bottom: 4px; }
+.stl-wires .recap-stat .val { font-size: 20px; font-weight: 600; color: rgb(17, 24, 39); }
+.stl-wires .recap-stat .sub { font-size: 11px; color: rgb(107, 114, 128); margin-top: 2px; }
+
+.stl-wires .footer-actions {
+  margin-top: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px dashed rgb(209, 213, 219);
+  padding-top: 14px;
+}
+.stl-wires .footer-meta { font-size: 11px; color: rgb(156, 163, 175); }
+.stl-wires .btn {
+  padding: 10px 20px;
+  background: rgb(17, 24, 39);
+  color: rgb(255, 255, 255);
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+}
+.stl-wires .btn.secondary {
+  background: rgb(255, 255, 255);
+  color: rgb(107, 114, 128);
+  border: 1px solid rgb(156, 163, 175);
+  margin-right: 10px;
+}
+
+.stl-wires .annotation {
+  color: rgb(156, 163, 175);
+  font-style: italic;
+  font-size: 12px;
+  max-width: 880px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* SCREEN B — Live station */
+.stl-wires .demand-strip {
+  border: 2px solid rgb(17, 24, 39);
+  background: rgb(255, 255, 255);
+  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 240px;
+}
+.stl-wires .demand-cell { padding: 14px 18px; border-right: 1px solid rgb(209, 213, 219); }
+.stl-wires .demand-cell:last-child { border-right: none; }
+.stl-wires .demand-cell .lbl { font-size: 10px; color: rgb(107, 114, 128); letter-spacing: 1.2px; margin-bottom: 4px; }
+.stl-wires .demand-cell .val { font-size: 20px; font-weight: 600; color: rgb(17, 24, 39); }
+.stl-wires .demand-cell .sub { font-size: 11px; color: rgb(107, 114, 128); margin-top: 2px; }
+.stl-wires .demand-cell.mode { background: rgb(17, 24, 39); color: rgb(255, 255, 255); display: flex; flex-direction: column; justify-content: center; }
+.stl-wires .demand-cell.mode .lbl { color: rgb(156, 163, 175); }
+.stl-wires .demand-cell.mode .val { color: rgb(255, 255, 255); font-size: 16px; letter-spacing: 1px; }
+.stl-wires .demand-cell.mode .sub { color: rgb(156, 163, 175); }
+
+.stl-wires .fryer-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.stl-wires .fryer { border: 1px solid rgb(156, 163, 175); background: rgb(255, 255, 255); display: flex; flex-direction: column; min-height: 280px; }
+.stl-wires .fryer-head {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgb(209, 213, 219);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgb(249, 250, 251);
+}
+.stl-wires .fryer-head .name { font-size: 13px; font-weight: 600; color: rgb(17, 24, 39); letter-spacing: 0.5px; }
+.stl-wires .fryer-head .state {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  padding: 3px 8px;
+  border: 1px solid rgb(107, 114, 128);
+  color: rgb(107, 114, 128);
+  background: rgb(255, 255, 255);
+}
+.stl-wires .fryer-head .state.cooking { background: rgb(107, 114, 128); color: rgb(255, 255, 255); border-color: rgb(75, 85, 99); }
+.stl-wires .fryer-head .state.ready { background: rgb(17, 24, 39); color: rgb(255, 255, 255); border-color: rgb(17, 24, 39); }
+.stl-wires .fryer-head .state.idle { color: rgb(156, 163, 175); border-color: rgb(209, 213, 219); }
+.stl-wires .fryer-head .state.undercooked { background: rgb(185, 28, 28); color: rgb(255, 255, 255); border-color: rgb(127, 29, 29); }
+.stl-wires .fryer-head .state.overcooked { background: rgb(217, 119, 6); color: rgb(255, 255, 255); border-color: rgb(146, 64, 14); }
+
+.stl-wires .fryer-body { flex: 1; padding: 22px 14px 18px; display: flex; flex-direction: column; align-items: center; text-align: center; justify-content: center; }
+.stl-wires .fryer-num { font-size: 56px; font-weight: 700; color: rgb(17, 24, 39); line-height: 1; margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.stl-wires .fryer-num.dim { color: rgb(209, 213, 219); font-size: 48px; }
+.stl-wires .fryer-lbl { font-size: 10px; color: rgb(107, 114, 128); letter-spacing: 1.5px; margin-bottom: 14px; text-transform: uppercase; }
+.stl-wires .fryer-timer { font-size: 22px; font-weight: 600; font-family: Menlo, Consolas, monospace; color: rgb(17, 24, 39); margin-bottom: 2px; letter-spacing: 1px; }
+.stl-wires .fryer-timer.overcooked { color: rgb(255, 255, 255); background: rgb(217, 119, 6); padding: 4px 12px; font-size: 24px; }
+.stl-wires .fryer-cam { font-size: 9px; color: rgb(107, 114, 128); letter-spacing: 1.2px; margin-top: 4px; }
+.stl-wires .fryer-cam .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: rgb(17, 24, 39); margin-right: 4px; vertical-align: middle; }
+.stl-wires .fryer-cam.overcooked-cam { color: rgb(146, 64, 14); font-weight: 600; }
+.stl-wires .fryer-cam.overcooked-cam .dot { background: rgb(217, 119, 6); }
+.stl-wires .drop-btn {
+  margin-top: 6px;
+  border: 2px solid rgb(17, 24, 39);
+  background: rgb(17, 24, 39);
+  color: rgb(255, 255, 255);
+  padding: 10px 14px;
+  width: 100%;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.stl-wires .pull-btn {
+  margin-top: 10px;
+  border: 1.5px solid rgb(17, 24, 39);
+  background: rgb(255, 255, 255);
+  color: rgb(17, 24, 39);
+  padding: 8px 12px;
+  width: 100%;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.stl-wires .pull-btn .mic { display: inline-block; margin-left: 6px; color: rgb(107, 114, 128); font-size: 9px; letter-spacing: 1px; }
+.stl-wires .hold-mark { color: rgb(209, 213, 219); font-size: 10px; letter-spacing: 2px; margin-top: 8px; }
+
+.stl-wires .fryer.undercooked { border: 2px solid rgb(185, 28, 28); }
+.stl-wires .fryer.undercooked .fryer-head { background: rgb(254, 226, 226); border-bottom-color: rgb(252, 165, 165); }
+.stl-wires .fryer.undercooked .fryer-head .name { color: rgb(127, 29, 29); }
+.stl-wires .fryer.undercooked .fryer-num { color: rgb(127, 29, 29); }
+.stl-wires .violation-msg { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: rgb(185, 28, 28); margin-bottom: 4px; text-transform: uppercase; }
+.stl-wires .violation-detail { font-size: 10px; color: rgb(127, 29, 29); letter-spacing: 0.5px; margin-bottom: 12px; }
+.stl-wires .redrop-btn {
+  margin-top: 6px;
+  border: 2px solid rgb(185, 28, 28);
+  background: rgb(185, 28, 28);
+  color: rgb(255, 255, 255);
+  padding: 10px 14px;
+  width: 100%;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.stl-wires .fryer.overcooked { border: 2px solid rgb(217, 119, 6); }
+.stl-wires .fryer.overcooked .fryer-head { background: rgb(254, 243, 199); border-bottom-color: rgb(252, 211, 77); }
+.stl-wires .fryer.overcooked .fryer-head .name { color: rgb(120, 53, 15); }
+
+.stl-wires .violations-line {
+  margin: 16px auto 0;
+  padding: 8px 14px;
+  border: 1px dashed rgb(209, 213, 219);
+  font-size: 11px;
+  color: rgb(107, 114, 128);
+  display: flex;
+  justify-content: space-between;
+  background: rgb(250, 250, 250);
+  max-width: 540px;
+}
+.stl-wires .violations-line .vio-count { color: rgb(17, 24, 39); font-weight: 600; }
+.stl-wires .violations-line .vio-link { color: rgb(107, 114, 128); text-decoration: underline; }
+
+/* SCREEN C — Camera view */
+.stl-wires .cam-health {
+  border: 2px solid rgb(17, 24, 39);
+  background: rgb(255, 255, 255);
+  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 240px;
+}
+.stl-wires .cam-cell { padding: 14px 18px; border-right: 1px solid rgb(209, 213, 219); }
+.stl-wires .cam-cell:last-child { border-right: none; }
+.stl-wires .cam-cell .lbl { font-size: 10px; color: rgb(107, 114, 128); letter-spacing: 1.2px; margin-bottom: 4px; }
+.stl-wires .cam-cell .val { font-size: 18px; font-weight: 600; color: rgb(17, 24, 39); }
+.stl-wires .cam-cell .sub { font-size: 11px; color: rgb(107, 114, 128); margin-top: 2px; }
+.stl-wires .cam-cell.online { background: rgb(17, 24, 39); color: rgb(255, 255, 255); display: flex; flex-direction: column; justify-content: center; }
+.stl-wires .cam-cell.online .lbl { color: rgb(156, 163, 175); }
+.stl-wires .cam-cell.online .val { color: rgb(255, 255, 255); }
+.stl-wires .cam-cell.online .sub { color: rgb(156, 163, 175); }
+.stl-wires .cam-cell.online .pulse {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgb(255, 255, 255);
+  margin-right: 6px;
+  vertical-align: middle;
+  animation: stl-pulse 1.5s ease-in-out infinite;
+}
+@keyframes stl-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.stl-wires .cam-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.stl-wires .cam-card { border: 1px solid rgb(156, 163, 175); background: rgb(255, 255, 255); display: grid; grid-template-columns: 1fr 220px; }
+.stl-wires .cam-card.violation-under { border: 2px solid rgb(185, 28, 28); }
+.stl-wires .cam-card.violation-over { border: 2px solid rgb(217, 119, 6); }
+.stl-wires .cam-view { background: rgb(31, 41, 55); aspect-ratio: 4 / 3; position: relative; overflow: hidden; border-right: 1px solid rgb(209, 213, 219); }
+.stl-wires .cam-view-inner {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgb(31, 41, 55) 0, rgb(31, 41, 55) 2px, rgb(28, 37, 50) 2px, rgb(28, 37, 50) 4px);
+}
+.stl-wires .cam-overlay-top {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: 8px 12px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: rgb(209, 213, 219);
+  letter-spacing: 1.2px;
+  font-family: Menlo, Consolas, monospace;
+  background: linear-gradient(rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0) 100%);
+  z-index: 3;
+}
+.stl-wires .cam-overlay-top .rec-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: rgb(239, 68, 68);
+  margin-right: 5px;
+  vertical-align: middle;
+  animation: stl-pulse 1.5s ease-in-out infinite;
+}
+.stl-wires .cam-overlay-top .res { color: rgb(156, 163, 175); }
+.stl-wires .cam-overlay-bottom {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 8px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: rgb(243, 244, 246);
+  letter-spacing: 1px;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.65) 0%, rgba(0, 0, 0, 0) 100%);
+  z-index: 3;
+  font-family: Menlo, Consolas, monospace;
+}
+.stl-wires .cam-overlay-bottom .time-stamp { color: rgb(209, 213, 219); }
+.stl-wires .cam-svg { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; }
+.stl-wires .cam-detect-label {
+  position: absolute;
+  background: rgb(255, 255, 255);
+  color: rgb(17, 24, 39);
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  font-family: Menlo, Consolas, monospace;
+  font-weight: 700;
+  z-index: 4;
+}
+.stl-wires .cam-detect-label.amber { background: rgb(217, 119, 6); color: rgb(255, 255, 255); }
+.stl-wires .cam-detect-label.red { background: rgb(185, 28, 28); color: rgb(255, 255, 255); }
+.stl-wires .cam-empty-msg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: rgb(107, 114, 128);
+  letter-spacing: 2px;
+  font-family: Menlo, Consolas, monospace;
+  z-index: 2;
+}
+.stl-wires .cam-sidebar { background: rgb(255, 255, 255); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.stl-wires .cam-sidebar-head { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid rgb(229, 231, 235); }
+.stl-wires .cam-sidebar-head .name { font-size: 13px; font-weight: 700; color: rgb(17, 24, 39); letter-spacing: 0.5px; }
+.stl-wires .cam-sidebar-head .state-pill {
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  padding: 2px 6px;
+  border: 1px solid rgb(107, 114, 128);
+  color: rgb(107, 114, 128);
+  background: rgb(255, 255, 255);
+}
+.stl-wires .cam-sidebar-head .state-pill.cooking { background: rgb(107, 114, 128); color: rgb(255, 255, 255); border-color: rgb(75, 85, 99); }
+.stl-wires .cam-sidebar-head .state-pill.ready { background: rgb(17, 24, 39); color: rgb(255, 255, 255); border-color: rgb(17, 24, 39); }
+.stl-wires .cam-sidebar-head .state-pill.empty { color: rgb(156, 163, 175); border-color: rgb(209, 213, 219); }
+.stl-wires .cam-sidebar-head .state-pill.over { background: rgb(217, 119, 6); color: rgb(255, 255, 255); border-color: rgb(146, 64, 14); }
+.stl-wires .cam-sidebar-head .state-pill.under { background: rgb(185, 28, 28); color: rgb(255, 255, 255); border-color: rgb(127, 29, 29); }
+.stl-wires .cam-stat { display: flex; justify-content: space-between; align-items: baseline; padding: 2px 0; }
+.stl-wires .cam-stat .k { font-size: 10px; color: rgb(107, 114, 128); letter-spacing: 0.8px; text-transform: uppercase; }
+.stl-wires .cam-stat .v { font-size: 13px; font-weight: 600; color: rgb(17, 24, 39); font-variant-numeric: tabular-nums; }
+.stl-wires .cam-stat .v.big { font-size: 18px; }
+.stl-wires .cam-stat .v.mono { font-family: Menlo, Consolas, monospace; }
+.stl-wires .cam-stat .v.red { color: rgb(185, 28, 28); }
+.stl-wires .cam-stat .v.amber { color: rgb(217, 119, 6); }
+.stl-wires .cam-confidence {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px dashed rgb(209, 213, 219);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: rgb(107, 114, 128);
+  letter-spacing: 0.8px;
+}
+.stl-wires .cam-confidence .conf { color: rgb(17, 24, 39); font-weight: 700; }
+.stl-wires .cam-confidence .conf .dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: rgb(17, 24, 39);
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+/* ===================== DARK MODE =====================
+ * Wireframe palette inverts: tablet surface goes dark, text goes light,
+ * borders stay subtle. The "dark navy" accent elements (outlook banner,
+ * MODE cell, DROP NOW button) flip to a light cream so they still pop
+ * against the dark canvas. Violation colors (amber/red) keep their hue
+ * but darken slightly so they don't blow out. */
+
+.dark .stl-wires { background: rgb(20, 22, 28); }
+.dark .stl-wires .header-block h1 { color: rgb(243, 244, 246); }
+.dark .stl-wires .header-block p { color: rgb(156, 163, 175); }
+.dark .stl-wires .annotation { color: rgb(107, 114, 128); }
+
+/* Screen meta + tabs */
+.dark .stl-wires .screen-meta .num {
+  background: rgb(31, 33, 40);
+  color: rgb(209, 213, 219);
+  border-color: rgb(75, 85, 99);
+}
+.dark .stl-wires .screen-meta .name { color: rgb(243, 244, 246); }
+.dark .stl-wires .screen-meta .when { color: rgb(107, 114, 128); }
+.dark .stl-wires .stl-tabs { border-bottom-color: rgb(45, 48, 56); }
+.dark .stl-wires .stl-tab {
+  background: rgb(28, 30, 38);
+  border-color: rgb(55, 60, 70);
+  color: rgb(156, 163, 175);
+}
+.dark .stl-wires .stl-tab .num { color: rgb(107, 114, 128); }
+.dark .stl-wires .stl-tab .ttl { color: rgb(209, 213, 219); }
+.dark .stl-wires .stl-tab[aria-selected="true"] {
+  background: rgb(243, 244, 246);
+  border-color: rgb(243, 244, 246);
+}
+.dark .stl-wires .stl-tab[aria-selected="true"] .num { color: rgb(107, 114, 128); }
+.dark .stl-wires .stl-tab[aria-selected="true"] .ttl { color: rgb(17, 24, 39); }
+
+/* Tablet shell */
+.dark .stl-wires .tablet {
+  background: rgb(24, 26, 33);
+  border-color: rgb(75, 80, 92);
+  box-shadow: rgba(0, 0, 0, 0.4) 0 4px 16px;
+}
+.dark .stl-wires .header {
+  background: rgb(28, 30, 38);
+  border-bottom-color: rgb(45, 48, 56);
+  color: rgb(209, 213, 219);
+}
+.dark .stl-wires .header .center,
+.dark .stl-wires .header .user { color: rgb(156, 163, 175); }
+
+/* Outlook banner — "dark navy" element flips to cream */
+.dark .stl-wires .outlook-banner {
+  border-color: rgb(243, 244, 246);
+  background: rgb(32, 35, 44);
+}
+.dark .stl-wires .outlook-banner .ttl { color: rgb(156, 163, 175); }
+.dark .stl-wires .outlook-banner .msg { color: rgb(243, 244, 246); }
+.dark .stl-wires .outlook-banner .badge {
+  background: rgb(243, 244, 246);
+  color: rgb(17, 24, 39);
+}
+
+/* Panels */
+.dark .stl-wires .panel {
+  background: rgb(28, 30, 38);
+  border-color: rgb(55, 60, 70);
+}
+.dark .stl-wires .panel-header {
+  border-bottom-color: rgb(45, 48, 56);
+}
+.dark .stl-wires .panel-header .h { color: rgb(243, 244, 246); }
+.dark .stl-wires .panel-header .sub { color: rgb(156, 163, 175); }
+.dark .stl-wires .chart-summary { border-bottom-color: rgb(55, 60, 70); }
+.dark .stl-wires .summary-stat .lbl { color: rgb(156, 163, 175); }
+.dark .stl-wires .summary-stat .val { color: rgb(243, 244, 246); }
+.dark .stl-wires .summary-stat .delta { color: rgb(107, 114, 128); }
+
+/* Chart */
+.dark .stl-wires .chart {
+  border-bottom-color: rgb(75, 80, 92);
+  border-left-color: rgb(75, 80, 92);
+}
+.dark .stl-wires .grid-line { border-top-color: rgb(45, 48, 56); }
+.dark .stl-wires .y-tick { color: rgb(107, 114, 128); }
+.dark .stl-wires .x-tick { color: rgb(107, 114, 128); }
+.dark .stl-wires .bar {
+  background: rgb(55, 60, 70);
+  border-color: rgb(107, 114, 128);
+}
+.dark .stl-wires .bar.med {
+  background: rgb(107, 114, 128);
+  border-color: rgb(156, 163, 175);
+}
+.dark .stl-wires .bar.peak {
+  background: rgb(209, 213, 219);
+  border-color: rgb(243, 244, 246);
+}
+.dark .stl-wires .bar-label { color: rgb(156, 163, 175); }
+
+/* Daypart strip */
+.dark .stl-wires .daypart-strip { border-color: rgb(55, 60, 70); }
+.dark .stl-wires .daypart { border-right-color: rgb(55, 60, 70); }
+.dark .stl-wires .daypart .name { color: rgb(107, 114, 128); }
+.dark .stl-wires .daypart .qty { color: rgb(243, 244, 246); }
+.dark .stl-wires .daypart.peak { background: rgb(32, 35, 44); }
+.dark .stl-wires .daypart.peak .name { color: rgb(243, 244, 246); }
+
+/* Triggers */
+.dark .stl-wires .triggers {
+  background: rgb(32, 35, 44);
+  border-color: rgb(75, 80, 92);
+}
+.dark .stl-wires .triggers .h { color: rgb(156, 163, 175); }
+.dark .stl-wires .trigger-row { color: rgb(209, 213, 219); }
+.dark .stl-wires .trigger-row .icon {
+  background: rgb(28, 30, 38);
+  border-color: rgb(75, 80, 92);
+  color: rgb(156, 163, 175);
+}
+.dark .stl-wires .trigger-row .when { color: rgb(107, 114, 128); }
+
+/* Yesterday strip */
+.dark .stl-wires .yesterday-strip {
+  background: rgb(28, 30, 38);
+  border-color: rgb(55, 60, 70);
+}
+.dark .stl-wires .yesterday-strip .panel-header { background: rgb(32, 35, 44); }
+.dark .stl-wires .recap-stat { border-right-color: rgb(45, 48, 56); }
+.dark .stl-wires .recap-stat .lbl { color: rgb(156, 163, 175); }
+.dark .stl-wires .recap-stat .val { color: rgb(243, 244, 246); }
+.dark .stl-wires .recap-stat .sub { color: rgb(107, 114, 128); }
+
+/* Footer + buttons */
+.dark .stl-wires .footer-actions { border-top-color: rgb(45, 48, 56); }
+.dark .stl-wires .footer-meta { color: rgb(107, 114, 128); }
+.dark .stl-wires .btn {
+  background: rgb(243, 244, 246);
+  color: rgb(17, 24, 39);
+}
+.dark .stl-wires .btn.secondary {
+  background: rgb(28, 30, 38);
+  color: rgb(209, 213, 219);
+  border-color: rgb(75, 80, 92);
+}
+
+/* SCREEN B — Live station */
+.dark .stl-wires .demand-strip {
+  background: rgb(28, 30, 38);
+  border-color: rgb(243, 244, 246);
+}
+.dark .stl-wires .demand-cell { border-right-color: rgb(55, 60, 70); }
+.dark .stl-wires .demand-cell .lbl { color: rgb(156, 163, 175); }
+.dark .stl-wires .demand-cell .val { color: rgb(243, 244, 246); }
+.dark .stl-wires .demand-cell .sub { color: rgb(107, 114, 128); }
+.dark .stl-wires .demand-cell.mode {
+  background: rgb(243, 244, 246);
+  color: rgb(17, 24, 39);
+}
+.dark .stl-wires .demand-cell.mode .lbl { color: rgb(75, 85, 99); }
+.dark .stl-wires .demand-cell.mode .val { color: rgb(17, 24, 39); }
+.dark .stl-wires .demand-cell.mode .sub { color: rgb(75, 85, 99); }
+
+/* Fryer cards */
+.dark .stl-wires .fryer {
+  background: rgb(28, 30, 38);
+  border-color: rgb(55, 60, 70);
+}
+.dark .stl-wires .fryer-head {
+  background: rgb(32, 35, 44);
+  border-bottom-color: rgb(45, 48, 56);
+}
+.dark .stl-wires .fryer-head .name { color: rgb(243, 244, 246); }
+.dark .stl-wires .fryer-head .state {
+  background: rgb(28, 30, 38);
+  border-color: rgb(75, 80, 92);
+  color: rgb(156, 163, 175);
+}
+.dark .stl-wires .fryer-head .state.cooking {
+  background: rgb(107, 114, 128);
+  color: rgb(255, 255, 255);
+  border-color: rgb(156, 163, 175);
+}
+.dark .stl-wires .fryer-head .state.ready {
+  background: rgb(243, 244, 246);
+  color: rgb(17, 24, 39);
+  border-color: rgb(243, 244, 246);
+}
+.dark .stl-wires .fryer-head .state.idle {
+  color: rgb(107, 114, 128);
+  border-color: rgb(55, 60, 70);
+}
+.dark .stl-wires .fryer-num { color: rgb(243, 244, 246); }
+.dark .stl-wires .fryer-num.dim { color: rgb(55, 60, 70); }
+.dark .stl-wires .fryer-lbl { color: rgb(156, 163, 175); }
+.dark .stl-wires .fryer-timer { color: rgb(243, 244, 246); }
+.dark .stl-wires .fryer-cam { color: rgb(156, 163, 175); }
+.dark .stl-wires .fryer-cam .dot { background: rgb(243, 244, 246); }
+
+.dark .stl-wires .drop-btn {
+  background: rgb(243, 244, 246);
+  color: rgb(17, 24, 39);
+  border-color: rgb(243, 244, 246);
+}
+.dark .stl-wires .pull-btn {
+  background: rgb(28, 30, 38);
+  color: rgb(243, 244, 246);
+  border-color: rgb(243, 244, 246);
+}
+.dark .stl-wires .pull-btn .mic { color: rgb(156, 163, 175); }
+.dark .stl-wires .hold-mark { color: rgb(75, 80, 92); }
+
+/* Violation states — keep amber/red but adapt for dark canvas */
+.dark .stl-wires .fryer.overcooked { border-color: rgb(217, 119, 6); }
+.dark .stl-wires .fryer.overcooked .fryer-head {
+  background: rgb(60, 38, 12);
+  border-bottom-color: rgb(146, 64, 14);
+}
+.dark .stl-wires .fryer.overcooked .fryer-head .name { color: rgb(252, 211, 77); }
+.dark .stl-wires .fryer.undercooked { border-color: rgb(220, 38, 38); }
+.dark .stl-wires .fryer.undercooked .fryer-head {
+  background: rgb(60, 18, 18);
+  border-bottom-color: rgb(127, 29, 29);
+}
+.dark .stl-wires .fryer.undercooked .fryer-head .name { color: rgb(252, 165, 165); }
+.dark .stl-wires .fryer.undercooked .fryer-num { color: rgb(252, 165, 165); }
+.dark .stl-wires .violation-msg { color: rgb(248, 113, 113); }
+.dark .stl-wires .violation-detail { color: rgb(252, 165, 165); }
+
+/* Violations counter */
+.dark .stl-wires .violations-line {
+  background: rgb(28, 30, 38);
+  border-color: rgb(55, 60, 70);
+  color: rgb(156, 163, 175);
+}
+.dark .stl-wires .violations-line .vio-count { color: rgb(243, 244, 246); }
+.dark .stl-wires .violations-line .vio-link { color: rgb(156, 163, 175); }
+
+/* SCREEN C — Camera view */
+.dark .stl-wires .cam-health {
+  background: rgb(28, 30, 38);
+  border-color: rgb(243, 244, 246);
+}
+.dark .stl-wires .cam-cell { border-right-color: rgb(55, 60, 70); }
+.dark .stl-wires .cam-cell .lbl { color: rgb(156, 163, 175); }
+.dark .stl-wires .cam-cell .val { color: rgb(243, 244, 246); }
+.dark .stl-wires .cam-cell .sub { color: rgb(107, 114, 128); }
+.dark .stl-wires .cam-cell.online {
+  background: rgb(243, 244, 246);
+  color: rgb(17, 24, 39);
+}
+.dark .stl-wires .cam-cell.online .lbl { color: rgb(75, 85, 99); }
+.dark .stl-wires .cam-cell.online .val { color: rgb(17, 24, 39); }
+.dark .stl-wires .cam-cell.online .sub { color: rgb(75, 85, 99); }
+.dark .stl-wires .cam-cell.online .pulse { background: rgb(17, 24, 39); }
+
+.dark .stl-wires .cam-card {
+  background: rgb(28, 30, 38);
+  border-color: rgb(55, 60, 70);
+}
+.dark .stl-wires .cam-view { border-right-color: rgb(45, 48, 56); }
+.dark .stl-wires .cam-sidebar { background: rgb(28, 30, 38); }
+.dark .stl-wires .cam-sidebar-head { border-bottom-color: rgb(45, 48, 56); }
+.dark .stl-wires .cam-sidebar-head .name { color: rgb(243, 244, 246); }
+.dark .stl-wires .cam-sidebar-head .state-pill {
+  background: rgb(32, 35, 44);
+  border-color: rgb(75, 80, 92);
+  color: rgb(156, 163, 175);
+}
+.dark .stl-wires .cam-sidebar-head .state-pill.cooking {
+  background: rgb(107, 114, 128);
+  color: rgb(255, 255, 255);
+  border-color: rgb(156, 163, 175);
+}
+.dark .stl-wires .cam-sidebar-head .state-pill.ready {
+  background: rgb(243, 244, 246);
+  color: rgb(17, 24, 39);
+  border-color: rgb(243, 244, 246);
+}
+.dark .stl-wires .cam-sidebar-head .state-pill.empty {
+  color: rgb(107, 114, 128);
+  border-color: rgb(55, 60, 70);
+}
+.dark .stl-wires .cam-stat .k { color: rgb(156, 163, 175); }
+.dark .stl-wires .cam-stat .v { color: rgb(243, 244, 246); }
+.dark .stl-wires .cam-confidence {
+  color: rgb(156, 163, 175);
+  border-top-color: rgb(55, 60, 70);
+}
+.dark .stl-wires .cam-confidence .conf { color: rgb(243, 244, 246); }
+.dark .stl-wires .cam-confidence .conf .dot { background: rgb(243, 244, 246); }
+.dark .stl-wires .cam-detect-label {
+  background: rgb(243, 244, 246);
+  color: rgb(17, 24, 39);
+}
+.dark .stl-wires .cam-empty-msg { color: rgb(156, 163, 175); }
