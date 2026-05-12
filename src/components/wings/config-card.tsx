@@ -24,9 +24,9 @@ interface Props {
 const BASKET_OPTIONS: WingsConfigV1["basketCount"][] = [2, 3, 4, 5, 6];
 const HOLD_DECAY_OPTIONS = [5, 10, 15, 20];
 const SCENARIOS: { id: ScenarioPreset; label: string; sub: string }[] = [
-  { id: "calm", label: "Calm", sub: "mid-shift, light demand" },
-  { id: "pre-rush", label: "Pre-rush", sub: "10 min before game ends" },
-  { id: "peak", label: "Peak", sub: "rush in progress, baskets full" },
+  { id: "calm", label: "Calm", sub: "mid-shift · all baskets empty" },
+  { id: "pre-rush", label: "Pre-rush", sub: "1 cooking + 1 on rest (state 4)" },
+  { id: "peak", label: "Peak", sub: "all 4 states visible at once" },
 ];
 
 export function ConfigCard({

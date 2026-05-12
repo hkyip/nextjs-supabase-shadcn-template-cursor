@@ -313,9 +313,8 @@ function FryerCard({
             <div className="fryer-lbl">wings on rest</div>
             <div className="fryer-cam">
               <span className="dot" />
-              SAUCE &amp; SERVE · KDS depletes
+              SAUCE &amp; SERVE
             </div>
-            <div className="hold-mark">· · ·</div>
           </>
         ) : isOvercook ? (
           <>

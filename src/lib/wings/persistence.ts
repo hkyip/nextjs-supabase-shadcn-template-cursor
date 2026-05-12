@@ -6,7 +6,9 @@ import {
 } from "@/lib/wings/mock-seed";
 import type { WingsPersistedStateV1 } from "@/lib/wings/types";
 
-const STORAGE_KEY = "forkcast:wings:v1";
+// Bump this when the seeded state shape changes — guarantees existing browser
+// state from previous demo iterations is discarded so the new seed shows up.
+const STORAGE_KEY = "forkcast:wings:v2";
 
 /** SSR-safe deterministic initial state. */
 export function createWingsInitialState(): WingsPersistedStateV1 {

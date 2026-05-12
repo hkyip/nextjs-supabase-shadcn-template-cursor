@@ -13,11 +13,14 @@ export function deriveBasketStatus(
   config: WingsConfigV1,
 ): BasketStatus {
   if (basket.status === "empty") return "empty";
-  // Undercooked is a sticky violation state — only cleared by redrop or empty.
+  // Undercooked and READY are sticky states — only cleared by user action
+  // (redrop) or KDS depletion. READY only enters via manual PULL, never auto.
   if (basket.status === "undercooked") return "undercooked";
+  if (basket.status === "ready") return "ready";
   const elapsed = basket.elapsedSeconds;
-  if (elapsed < config.cookSeconds) return "frying";
-  if (elapsed <= config.cookSeconds + config.cookOvershootSeconds) return "ready";
+  // FRYING is sticky across the cook + grace window. Operator must PULL to
+  // exit to READY. If they don't, basket auto-flips to OVERCOOK past grace.
+  if (elapsed <= config.cookSeconds + config.cookOvershootSeconds) return "frying";
   return "overcook";
 }
 
@@ -29,13 +32,20 @@ export function basketRemainingSeconds(
   return config.cookSeconds - basket.elapsedSeconds;
 }
 
-/** Tick a basket forward by sim seconds. Undercooked + empty are frozen. */
+/** Tick a basket forward by sim seconds. Terminal states (empty, ready,
+ * undercooked) don't advance — they're cleared by user action or KDS. */
 export function tickBasket(
   basket: FryerBasket,
   config: WingsConfigV1,
   simSecondsElapsed: number,
 ): FryerBasket {
-  if (basket.status === "empty" || basket.status === "undercooked") return basket;
+  if (
+    basket.status === "empty" ||
+    basket.status === "undercooked" ||
+    basket.status === "ready"
+  ) {
+    return basket;
+  }
   const elapsedSeconds = basket.elapsedSeconds + simSecondsElapsed;
   return {
     ...basket,
